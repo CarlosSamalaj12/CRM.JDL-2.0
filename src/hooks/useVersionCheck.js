@@ -49,9 +49,6 @@ export function useVersionCheck({ intervalMs = DEFAULT_INTERVAL_MS, enabled = tr
         setServerVersion(info.version);
         setLastCheck(new Date());
         const result = evaluateUpdate(info);
-        if (result.needsUpdate && result.forceLogout) {
-          preemptivelyInvalidateSession();
-        }
         setUpdateState(result.needsUpdate ? result : null);
       }
     } finally {
@@ -121,7 +118,6 @@ export function useVersionCheck({ intervalMs = DEFAULT_INTERVAL_MS, enabled = tr
       ) {
         return;
       }
-      preemptivelyInvalidateSession();
       setServerVersion(data.version || 'nueva');
       setUpdateState({
         needsUpdate: true,
@@ -152,6 +148,7 @@ export function useVersionCheck({ intervalMs = DEFAULT_INTERVAL_MS, enabled = tr
     currentVersion: CURRENT_VERSION,
     checking,
     lastCheck,
+    check,
     checkNow: check,
     reload,
   };

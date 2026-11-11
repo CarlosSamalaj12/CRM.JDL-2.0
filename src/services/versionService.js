@@ -196,46 +196,24 @@ export function evaluateUpdate(serverInfo) {
     } catch (_) {}
   }
 
-  // Hay actualización si la versión del server difiere o es mayor a la local
-  if (cmp < 0) {
-    return {
-      needsUpdate: true,
-      reason: serverInfo.forceLogout ? 'force-logout' : 'outdated',
-      forceLogout: Boolean(serverInfo.forceLogout),
-      serverVersion: serverInfo.version,
-      message: serverInfo.message || 'Hay una nueva versión disponible. Se cerrará sesión para aplicar los cambios limpiamente.',
-    };
+  // Si la versión del bundle local ya es igual o mayor a la del servidor, el usuario ya tiene la versión más reciente
+  if (cmp >= 0) {
+    try {
+      const savedVersion = localStorage.getItem('crm_installed_version');
+      if (!savedVersion || compareVersions(savedVersion, serverInfo.version) < 0) {
+        localStorage.setItem('crm_installed_version', serverInfo.version);
+      }
+    } catch (_) {}
+    return { needsUpdate: false };
   }
 
-  // Si el server marca como required, clientes por debajo de minVersion también fuerzan
-  if (serverInfo.required && serverInfo.minVersion) {
-    const minCmp = compareVersions(CURRENT_VERSION, serverInfo.minVersion);
-    if (minCmp < 0) {
-      return {
-        needsUpdate: true,
-        reason: 'below-min',
-        forceLogout: true,
-        serverVersion: serverInfo.version,
-        minVersion: serverInfo.minVersion,
-        message: serverInfo.message || `Esta versión ya no es compatible. Se cerrará sesión para actualizar.`,
-      };
-    }
-  }
-
-  // También verificar si la sesión guardada en localStorage pertenecía a una versión anterior a la del servidor
-  try {
-    const hasSession = Boolean(localStorage.getItem('token'));
-    const savedVersion = localStorage.getItem('crm_installed_version');
-    if (hasSession && serverInfo.forceLogout && (!savedVersion || compareVersions(savedVersion, serverInfo.version) < 0)) {
-      return {
-        needsUpdate: true,
-        reason: 'force-logout',
-        forceLogout: true,
-        serverVersion: serverInfo.version,
-        message: serverInfo.message || 'Se ha desplegado una nueva versión del sistema. Se cerrará sesión para aplicar los cambios limpiamente.',
-      };
-    }
-  } catch (_) {}
-
-  return { needsUpdate: false };
+  // Hay actualización si la versión del server es mayor a la local (cmp < 0)
+  return {
+    needsUpdate: true,
+    reason: serverInfo.forceLogout ? 'force-logout' : 'outdated',
+    forceLogout: Boolean(serverInfo.forceLogout),
+    serverVersion: serverInfo.version,
+    minVersion: serverInfo.minVersion,
+    message: serverInfo.message || 'Se ha desplegado una nueva versión del sistema con mejoras críticas.',
+  };
 }

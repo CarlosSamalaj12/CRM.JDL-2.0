@@ -106,27 +106,11 @@ function App() {
   }, [checkMaintenance]);
 
   // Control de versiones en arranque en frío (solo producción):
-  // Si la versión instalada difiere de la del bundle, purga sesión y cachés
+  // Sincroniza la versión local instalada con la del bundle activo
   React.useEffect(() => {
     if (CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')) {
-      const pathname = window.location.pathname;
-      const isPublicRoute = pathname.startsWith('/checklist-public/');
-      const isLoginPage = pathname === '/login';
-
       const savedVersion = localStorage.getItem('crm_installed_version');
-      const hasSession = !!localStorage.getItem('token');
-
-      // Si ya estamos en login o ruta pública, no hay nada que purgar ni redirigir
-      if (isLoginPage || isPublicRoute) {
-        localStorage.setItem('crm_installed_version', CURRENT_VERSION);
-        return;
-      }
-
-      // Solo purga si hay sesión previa activa y la versión del bundle es estrictamente mayor
-      if (hasSession && (!savedVersion || savedVersion !== CURRENT_VERSION)) {
-        console.warn(`[App] Nueva versión instalada (${CURRENT_VERSION} vs ${savedVersion}). Cerrando sesión para renovar app.`);
-        forcePurgeAndLogout(CURRENT_VERSION);
-      } else {
+      if (!savedVersion || savedVersion !== CURRENT_VERSION) {
         localStorage.setItem('crm_installed_version', CURRENT_VERSION);
       }
     }

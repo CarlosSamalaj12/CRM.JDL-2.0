@@ -28,6 +28,7 @@ import {
   MessageCircle,
   Send,
   AtSign,
+  Copy,
   Star,
   History,
   AlertCircle,
@@ -109,3 +110,4 @@ export const IconWrench = wrapIcon(Wrench, 'crm-icon-wrench');
 export const IconArmchair = wrapIcon(Armchair, 'crm-icon-armchair');
 export const IconLayoutGrid = wrapIcon(LayoutGrid, 'crm-icon-layoutgrid');
 export const IconRefreshCw = wrapIcon(RefreshCw, 'crm-icon-refresh');
+export const IconCopy = wrapIcon(Copy, 'crm-icon-copy');

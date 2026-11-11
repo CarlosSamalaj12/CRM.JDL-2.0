@@ -113,16 +113,11 @@ export const authService = {
       return null;
     }
 
-    // En producción, si la versión instalada en localStorage no existe o no coincide
-    // con la versión actual del bundle, invalidar la sesión y purgar caché de inmediato.
+    // En producción, sincronizar la versión instalada con la del bundle si difiere
     if (CURRENT_VERSION && CURRENT_VERSION !== '0.0.0-dev' && !CURRENT_VERSION.startsWith('0.0.0-')) {
       const savedVersion = localStorage.getItem('crm_installed_version');
       if (!savedVersion || savedVersion !== CURRENT_VERSION) {
-        this.clearSession();
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          forcePurgeAndLogout(CURRENT_VERSION);
-        }
-        return null;
+        localStorage.setItem('crm_installed_version', CURRENT_VERSION);
       }
     }
 

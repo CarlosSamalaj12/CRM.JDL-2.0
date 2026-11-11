@@ -19,7 +19,8 @@ import { InformeActionsContext } from '../components/ReportsLayout.jsx';
 import {
   IconFileText, IconPlus, IconSearch, IconCheckCircle,
   IconArrowLeft, IconX, IconGripVertical,
-  IconHistory, IconRefreshCw
+  IconHistory, IconRefreshCw, IconAlertCircle, IconCalendar, IconCopy,
+  IconSettings, IconClock, IconBuilding
 } from '../components/Icons.jsx';
 import ReassignSalonModal from '../components/ReassignSalonModal.jsx';
 import SettingsChecklist from '../../settings/SettingsChecklist';
@@ -710,17 +711,25 @@ export default function ConstructorInforme() {
                   });
                 }
 
-                // Si la reserva en el calendario tiene días que no estaban en este informe guardado (ej. se guardó solo día 1), incluir los días faltantes automáticamente
-                const currentLoadedDates = new Set(mappedDias.map(d => String(d.fecha || '').slice(0, 10)));
-                crmDays.forEach(cd => {
-                  if (!currentLoadedDates.has(cd.fecha)) {
-                    mappedDias.push({
-                      ...crearDiaVacio(cd.fecha),
-                      salon: cd.salon || '',
-                      horario: cd.horario || ''
-                    });
-                  }
-                });
+                // Si el informe guardado tiene 1 día y la reserva tiene 1 día pero con fechas distintas (reprogramación directa),
+                // adaptar inmediatamente el contenido a la nueva fecha de la reserva para no dividir el día en dos pestañas
+                if (mappedDias.length === 1 && crmDays.length === 1 && String(mappedDias[0].fecha || '').slice(0, 10) !== String(crmDays[0].fecha || '').slice(0, 10)) {
+                  mappedDias[0].fecha = crmDays[0].fecha;
+                  if (crmDays[0].salon) mappedDias[0].salon = crmDays[0].salon;
+                  if (crmDays[0].horario) mappedDias[0].horario = crmDays[0].horario;
+                } else {
+                  // Si la reserva en el calendario tiene días que no estaban en este informe guardado, incluir los días faltantes
+                  const currentLoadedDates = new Set(mappedDias.map(d => String(d.fecha || '').slice(0, 10)));
+                  crmDays.forEach(cd => {
+                    if (!currentLoadedDates.has(cd.fecha)) {
+                      mappedDias.push({
+                        ...crearDiaVacio(cd.fecha),
+                        salon: cd.salon || '',
+                        horario: cd.horario || ''
+                      });
+                    }
+                  });
+                }
 
                 mappedDias.sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
                 setDias(mappedDias);
@@ -1292,22 +1301,169 @@ export default function ConstructorInforme() {
 
   const diaActivo = dias[activeDay] || dias[0];
 
+  // Fechas actuales registradas en la reserva del CRM
+  const crmFechas = useMemo(() => {
+    return (crmDaysRef.current || []).map(cd => cd.fecha).filter(Boolean);
+  }, [dias]);
+
+  // Detectar días del informe cuyas fechas ya no pertenecen a la reserva
+  const diasDesfasados = useMemo(() => {
+    if (!crmFechas || crmFechas.length === 0) return [];
+    return dias
+      .map((d, index) => ({ ...d, index }))
+      .filter(d => d.fecha && !crmFechas.includes(String(d.fecha).slice(0, 10)));
+  }, [dias, crmFechas]);
+
+  // Función ejecutiva para trasladar el contenido de un día desfasado a una fecha válida de la reserva
+  const trasladarDiaAFecha = (diaIndex, targetFecha) => {
+    const targetCrmSlot = (crmDaysRef.current || []).find(cd => cd.fecha === targetFecha);
+    setDias(prev => {
+      const next = [...prev];
+      const source = next[diaIndex];
+      if (!source) return prev;
+
+      // Verificar si ya existe otro día con la targetFecha
+      const existingTargetIdx = next.findIndex((d, idx) => idx !== diaIndex && String(d.fecha).slice(0, 10) === targetFecha);
+
+      if (existingTargetIdx !== -1) {
+        // Si el día destino ya existe pero estaba vacío o casi vacío, adoptar todo el contenido del origen
+        const targetDay = next[existingTargetIdx];
+        const isTargetEmpty = (targetDay.selectedItems || []).length === 0;
+        if (isTargetEmpty) {
+          next[existingTargetIdx] = {
+            ...source,
+            id: targetDay.id || source.id,
+            fecha: targetFecha,
+            salon: targetCrmSlot?.salon || source.salon || '',
+            horario: targetCrmSlot?.horario || source.horario || '',
+          };
+          next.splice(diaIndex, 1);
+        } else {
+          // Fusionar ítems y montajes si ambos tenían contenido
+          targetDay.selectedItems = [...targetDay.selectedItems, ...(source.selectedItems || [])];
+          if ((source.montaje || []).length > 0) {
+            targetDay.montaje = [...(targetDay.montaje || []), ...source.montaje];
+          }
+          next.splice(diaIndex, 1);
+        }
+      } else {
+        // Actualizar fecha, salón y horario del día
+        next[diaIndex] = {
+          ...source,
+          fecha: targetFecha,
+          salon: targetCrmSlot?.salon || source.salon || '',
+          horario: targetCrmSlot?.horario || source.horario || '',
+        };
+      }
+
+      next.sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+      return next;
+    });
+
+    toast.success(`Día trasladado exitosamente al ${targetFecha}. Haz clic en "Guardar" para confirmar.`);
+  };
+
   if (loading) return <p className="status-message">Cargando...</p>;
   if (error && !informeId) return <p className="status-message status-error">{error}</p>;
 
   return (
     <div className="pos-page">
+      {/* ─── BANNER ASISTENTE DE REPROGRAMACIÓN / DESFASE DE FECHAS ─── */}
+      {diasDesfasados.length > 0 && crmFechas.length > 0 && (
+        <div style={{
+          margin: '12px 16px 0 16px',
+          background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+          border: '1.5px solid #fde68a',
+          borderRadius: '12px',
+          padding: '12px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          boxShadow: '0 2px 8px rgba(217, 119, 6, 0.08)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '34px', height: '34px', borderRadius: '8px',
+              background: '#fef3c7', color: '#d97706',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid #fde68a', flexShrink: 0
+            }}>
+              <IconAlertCircle size={18} strokeWidth={2.2} />
+            </div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: '800', color: '#92400e' }}>
+                Desfase de fechas detectado en el informe
+              </div>
+              <div style={{ fontSize: '12px', color: '#b45309', marginTop: '2px' }}>
+                Este informe contiene días configurados para fechas que ya no están en la reserva: <strong>{diasDesfasados.map(d => d.fecha).join(', ')}</strong>.
+                {` La reserva en el calendario está fijada para el `}<strong>{crmFechas.join(', ')}</strong>.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {crmFechas.length > 0 && diasDesfasados.length > 0 && (
+              <button
+                type="button"
+                onClick={() => trasladarDiaAFecha(diasDesfasados[0].index, crmFechas[0])}
+                style={{
+                  background: 'linear-gradient(135deg, #005954 0%, #0284c7 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+                }}
+              >
+                <IconRefreshCw size={13} />
+                Trasladar menú al {crmFechas[0]}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowReassignModal(true)}
+              style={{
+                background: '#ffffff',
+                color: '#78350f',
+                border: '1px solid #fde68a',
+                borderRadius: '8px',
+                padding: '7px 12px',
+                fontSize: '12px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+            >
+              Reasignar Salón / Fecha...
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── DAY TABS ─── */}
       <div className="pos-tabs">
-        {dias.map((d, i) => (
-          <button key={i} className={`pos-tab ${activeDay === i ? 'pos-tab-active' : ''}`} onClick={() => setActiveDay(i)}>
-            {d.fecha && <span style={{ color: '#a855f7', fontWeight: 800, fontSize: '0.85rem' }}>{(() => { const cf = String(d.fecha).slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(cf)) return ''; const dt = new Date(cf + 'T12:00:00'); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }); })()}</span>}
-            <span style={{ fontSize: '0.65rem', opacity: 0.6, display: 'block' }}>Día {i + 1}</span>
-            {dias.length > 0 && (
-              <span onClick={(e) => {
-                e.stopPropagation();
-                const source = dias[i];
-                const idx = dias.length;
+        {dias.map((d, i) => {
+          const isDateOrphan = d.fecha && crmFechas.length > 0 && !crmFechas.includes(String(d.fecha).slice(0, 10));
+          return (
+            <button key={i} className={`pos-tab ${activeDay === i ? 'pos-tab-active' : ''}`} onClick={() => setActiveDay(i)}>
+              {d.fecha && <span style={{ color: isDateOrphan ? '#d97706' : '#a855f7', fontWeight: 800, fontSize: '0.85rem' }}>{(() => { const cf = String(d.fecha).slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(cf)) return ''; const dt = new Date(cf + 'T12:00:00'); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }); })()}</span>}
+              <span style={{ fontSize: '0.65rem', opacity: 0.6, display: 'block' }}>Día {i + 1}</span>
+              {isDateOrphan && (
+                <span style={{ fontSize: '0.58rem', background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', borderRadius: '4px', padding: '1px 4px', fontWeight: '800', marginTop: '1px' }}>
+                  Fuera de reserva
+                </span>
+              )}
+              {dias.length > 0 && (
+                <span onClick={(e) => {
+                  e.stopPropagation();
+                  const source = dias[i];
+                  const idx = dias.length;
                   const dup = {
                     ...crearDiaVacio(),
                     salon: source.salon || '',
@@ -1322,24 +1478,25 @@ export default function ConstructorInforme() {
                     alertaCustom: source.alertaCustom || '',
                     tiempoComida: source.tiempoComida || null,
                   };
-                const nd = [...dias, dup];
-                setDias(nd);
-                setActiveDay(idx);
-              }} title="Duplicar día" style={{
-                display:'inline-flex', alignItems:'center', justifyContent:'center',
-                width:'16px', height:'16px', borderRadius:'50%', cursor:'pointer',
-                color:'var(--text-muted)', fontSize:'0.7rem', lineHeight:1,
-                transition:'all 0.15s ease', marginLeft:'0.1rem', marginRight:'0.1rem',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background='var(--primary-bg)'; e.currentTarget.style.color='var(--primary)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='var(--text-muted)'; }}
-              >
-                📋
-              </span>
-            )}
-            {dias.length > 1 && <span className="pos-tab-close" onClick={(e) => { e.stopPropagation(); removeDia(i); }}><IconX size={12} /></span>}
-          </button>
-        ))}
+                  const nd = [...dias, dup];
+                  setDias(nd);
+                  setActiveDay(idx);
+                }} title="Duplicar día" style={{
+                  display:'inline-flex', alignItems:'center', justifyContent:'center',
+                  width:'16px', height:'16px', borderRadius:'50%', cursor:'pointer',
+                  color:'var(--text-muted)', fontSize:'0.7rem', lineHeight:1,
+                  transition:'all 0.15s ease', marginLeft:'0.1rem', marginRight:'0.1rem',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background='var(--primary-bg)'; e.currentTarget.style.color='var(--primary)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='var(--text-muted)'; }}
+                >
+                  <IconCopy size={12} strokeWidth={2} />
+                </span>
+              )}
+              {dias.length > 1 && <span className="pos-tab-close" onClick={(e) => { e.stopPropagation(); removeDia(i); }}><IconX size={12} /></span>}
+            </button>
+          );
+        })}
         <button className="pos-tab pos-tab-add" onClick={addDia}><IconPlus size={14} /> Día</button>
       </div>
 
@@ -1371,75 +1528,140 @@ export default function ConstructorInforme() {
                   gap: '4px',
                 }}
               >
-                ⚙️ Orden
+                <IconSettings size={12} /> Orden
               </button>
             </div>
 
-            {/* Salón y Horario del día */}
+            {/* Fecha, Salón y Horario del día */}
             <div className="pos-ticket-dia-info" style={{
-              display: 'flex', gap: '8px', marginBottom: '10px',
+              display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px',
               padding: '8px 10px',
               background: 'var(--bg-elevated)',
               borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border)',
             }}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  🏛️ Salón
-                </label>
-                <input
-                  type="text"
-                  value={diaActivo.salon || ''}
-                  onChange={e => {
-                    const nd = [...dias];
-                    nd[activeDay] = { ...nd[activeDay], salon: e.target.value };
-                    setDias(nd);
-                  }}
-                  placeholder="Escribe o selecciona un salón..."
-                  list="salones-dia-list"
-                  style={{
-                    width: '100%', padding: '0.35rem 0.5rem',
-                    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.82rem',
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-primary)',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <datalist id="salones-dia-list">
-                  {salonesList.map(s => <option key={s} value={s} />)}
-                </datalist>
+              {/* Selector / Indicador de Fecha del Día */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <IconCalendar size={12} /> Fecha del Día
+                  </label>
+                  {crmFechas.length > 0 && !crmFechas.includes(String(diaActivo.fecha || '').slice(0, 10)) && (
+                    <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#b45309', background: '#fef3c7', padding: '1px 5px', borderRadius: '4px', border: '1px solid #fde68a' }}>
+                      Fuera de reserva
+                    </span>
+                  )}
+                </div>
+                {crmFechas.length > 0 ? (
+                  <select
+                    value={String(diaActivo.fecha || '').slice(0, 10)}
+                    onChange={e => {
+                      const newF = e.target.value;
+                      if (!newF) return;
+                      trasladarDiaAFecha(activeDay, newF);
+                    }}
+                    style={{
+                      width: '100%', padding: '0.35rem 0.5rem',
+                      border: crmFechas.includes(String(diaActivo.fecha || '').slice(0, 10)) ? '1px solid var(--border)' : '1.5px solid #d97706',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      background: 'var(--bg-card)',
+                      color: 'var(--text-primary)',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    {!crmFechas.includes(String(diaActivo.fecha || '').slice(0, 10)) && (
+                      <option value={String(diaActivo.fecha || '').slice(0, 10)}>
+                        ⚠️ {String(diaActivo.fecha || '').slice(0, 10)} (Fecha previa)
+                      </option>
+                    )}
+                    {crmFechas.map(f => (
+                      <option key={f} value={f}>
+                        {f} (Fecha de reserva)
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="date"
+                    value={String(diaActivo.fecha || '').slice(0, 10)}
+                    onChange={e => {
+                      const nd = [...dias];
+                      nd[activeDay] = { ...nd[activeDay], fecha: e.target.value };
+                      setDias(nd);
+                    }}
+                    style={{
+                      width: '100%', padding: '0.35rem 0.5rem',
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.82rem',
+                      background: 'var(--bg-card)',
+                      color: 'var(--text-primary)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                )}
               </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  🕐 Horario
-                </label>
-                <input
-                  type="text"
-                  value={diaActivo.horario || ''}
-                  onChange={e => {
-                    const nd = [...dias];
-                    nd[activeDay] = { ...nd[activeDay], horario: e.target.value };
-                    setDias(nd);
-                  }}
-                  placeholder="Ej: 8:00 - 18:00"
-                  style={{
-                    width: '100%', padding: '0.35rem 0.5rem',
-                    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.82rem',
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-primary)',
-                    boxSizing: 'border-box',
-                  }}
-                />
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <IconBuilding size={12} /> Salón
+                  </label>
+                  <input
+                    type="text"
+                    value={diaActivo.salon || ''}
+                    onChange={e => {
+                      const nd = [...dias];
+                      nd[activeDay] = { ...nd[activeDay], salon: e.target.value };
+                      setDias(nd);
+                    }}
+                    placeholder="Salón..."
+                    list="salones-dia-list"
+                    style={{
+                      width: '100%', padding: '0.35rem 0.5rem',
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.82rem',
+                      background: 'var(--bg-card)',
+                      color: 'var(--text-primary)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <datalist id="salones-dia-list">
+                    {salonesList.map(s => <option key={s} value={s} />)}
+                  </datalist>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <IconClock size={12} /> Horario
+                  </label>
+                  <input
+                    type="text"
+                    value={diaActivo.horario || ''}
+                    onChange={e => {
+                      const nd = [...dias];
+                      nd[activeDay] = { ...nd[activeDay], horario: e.target.value };
+                      setDias(nd);
+                    }}
+                    placeholder="Horario..."
+                    style={{
+                      width: '100%', padding: '0.35rem 0.5rem',
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.82rem',
+                      background: 'var(--bg-card)',
+                      color: 'var(--text-primary)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
             {/* Menú asignado */}
             {diaActivo.menuAsignado && (
               <div className="pos-ticket-menu">
-                <span>
-                  📋 {diaActivo.menuAsignado.nombre_menu}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <IconFileText size={12} /> {diaActivo.menuAsignado.nombre_menu}
                   {diaActivo.menuAsignado.categoria_nombre && (
                     <span style={{
                       fontSize:'0.6rem',padding:'0.05rem 0.3rem',

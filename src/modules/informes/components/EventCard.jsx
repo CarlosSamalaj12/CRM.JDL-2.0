@@ -188,9 +188,9 @@ export default function EventCard({ event, dragHandleProps, highlighted = false,
       const fecha = cardDate;
       const salon = event.Salon || event.nombre_salon || '';
       const msg = salon
-        ? `No hay informe creado para este día (${fecha} · ${salon})`
-        : `No hay informe creado para este día (${fecha})`;
-      toast.info(msg, { duration: 3500 });
+        ? `No hay informe activo para este día (${fecha} · ${salon}). Pulsa "+ Informe" para configurar o trasladar menús de este evento.`
+        : `No hay informe activo para este día (${fecha}). Pulsa "+ Informe" para configurar o trasladar menús de este evento.`;
+      toast.info(msg, { duration: 4000 });
       return;
     }
     const dateQs = cardDate ? `?date=${cardDate}` : '';

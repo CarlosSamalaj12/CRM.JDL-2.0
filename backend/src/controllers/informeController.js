@@ -687,10 +687,14 @@ export async function applyInformeResolutionsInternal(conn, baseId, resolutions 
       let targetDia = null;
       if (item.diaId) {
         targetDia = dias.find(d => Number(d.id) === Number(item.diaId));
+      } else if (item.sourceFecha) {
+        targetDia = dias.find(d => String(d.fecha_evento || '').slice(0, 10) === String(item.sourceFecha).slice(0, 10));
       } else if (item.targetFecha) {
         targetDia = dias.find(d => String(d.fecha_evento || '').slice(0, 10) === String(item.targetFecha).slice(0, 10));
       }
-      if (!targetDia && dias.length > 0) targetDia = dias[0];
+      if (!targetDia && dias.length > 0) {
+        targetDia = (item.targetFecha ? dias.find(d => String(d.fecha_evento || '').slice(0, 10) !== String(item.targetFecha).slice(0, 10)) : null) || dias[0];
+      }
 
       if (targetDia) {
         let parsed = {};
@@ -858,11 +862,14 @@ export async function reassignInformeSlot(req, res, next) {
     let targetDia = null;
     if (diaId) {
       targetDia = dias.find(d => String(d.id) === String(diaId));
+    } else if (req.body.sourceFecha) {
+      targetDia = dias.find(d => String(d.fecha_evento || '').slice(0, 10) === String(req.body.sourceFecha).slice(0, 10));
     } else if (targetFecha) {
       targetDia = dias.find(d => String(d.fecha_evento || '').slice(0, 10) === String(targetFecha).slice(0, 10));
     }
     if (!targetDia && dias.length > 0) {
-      targetDia = dias[0];
+      // Priorizar el día que no coincide con targetFecha (el que requiere ser trasladado)
+      targetDia = (targetFecha ? dias.find(d => String(d.fecha_evento || '').slice(0, 10) !== String(targetFecha).slice(0, 10)) : null) || dias[0];
     }
 
     if (targetDia) {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { loadState as loadCrmState } from '../../../services/stateService';
 import { reassignInformeSlot } from '../services/api';
 import { useToast } from '../context/ToastContext';
@@ -12,7 +13,8 @@ import {
   IconBuilding,
   IconFileText,
   IconTag,
-  IconLayers
+  IconLayers,
+  IconAlertCircle
 } from './Icons';
 
 export default function ReassignSalonModal({
@@ -30,6 +32,11 @@ export default function ReassignSalonModal({
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(0);
   const [updateDayContent, setUpdateDayContent] = useState(true);
+
+  // Fechas actuales del informe para detectar desfases
+  const currentDates = (Array.isArray(dias) ? dias : [])
+    .map(d => String(d.fecha || d.fecha_evento || '').slice(0, 10))
+    .filter(Boolean);
 
   useEffect(() => {
     if (!isOpen || !currentOcupacionId) return;
@@ -70,13 +77,22 @@ export default function ReassignSalonModal({
           const sPax = ev.slotPax || ev.pax || ev.Pax || '';
 
           if (sSalon && sDate) {
+            const isSameSlot = sId === normId;
+            const isSameDate = currentDates.includes(sDate);
+            const isSameSalon = currentSalon ? (currentSalon.trim().toLowerCase() === sSalon.toLowerCase()) : false;
+            // Solo es "actual" (sin cambios pendientes) si coincide en slot, fecha y salón
+            const isCurrent = isSameSlot && isSameDate && isSameSalon;
+            // Es un cambio de fecha si coincide el slot o el grupo pero la fecha cambió
+            const isDateShift = !isSameDate;
+
             slots.push({
               id: sId,
               salon: sSalon,
               fecha: sDate,
               horario: sHorario,
               pax: sPax,
-              isCurrent: sId === normId
+              isCurrent,
+              isDateShift
             });
           }
         });
@@ -85,9 +101,10 @@ export default function ReassignSalonModal({
         slots.sort((a, b) => a.fecha.localeCompare(b.fecha));
         setAvailableSlots(slots);
 
-        // Preseleccionar el primer slot disponible diferente al actual o el primero
+        // Preseleccionar preferentemente un slot con fecha cambiada (reprogramación) o diferente al actual
+        const shiftIdx = slots.findIndex(s => s.isDateShift);
         const diffIdx = slots.findIndex(s => !s.isCurrent);
-        setSelectedSlotIndex(diffIdx !== -1 ? diffIdx : 0);
+        setSelectedSlotIndex(shiftIdx !== -1 ? shiftIdx : (diffIdx !== -1 ? diffIdx : 0));
       })
       .catch(err => {
         console.warn('Error al cargar salones del CRM:', err);
@@ -97,19 +114,19 @@ export default function ReassignSalonModal({
       });
 
     return () => { mounted = false; };
-  }, [isOpen, currentOcupacionId, currentSalon]);
+  }, [isOpen, currentOcupacionId, currentSalon, dias.length]);
 
   if (!isOpen) return null;
 
   const handleApply = async () => {
     const chosenSlot = availableSlots[selectedSlotIndex];
     if (!chosenSlot) {
-      toast.error('Selecciona un salón destino');
+      toast.error('Selecciona un salón o fecha destino');
       return;
     }
 
     if (chosenSlot.isCurrent) {
-      toast.error('El informe ya está asignado a este salón. Selecciona otro salón para transferirlo.');
+      toast.error('El informe ya está asignado a este salón en esta misma fecha. Selecciona otra opción.');
       return;
     }
 
@@ -123,7 +140,11 @@ export default function ReassignSalonModal({
       };
 
       await reassignInformeSlot(informeId, payload);
-      toast.success(`Informe transferido exitosamente a ${chosenSlot.salon}`);
+      const actionMsg = chosenSlot.isDateShift
+        ? `Informe trasladado exitosamente a la fecha ${chosenSlot.fecha} (${chosenSlot.salon})`
+        : `Informe transferido exitosamente a ${chosenSlot.salon}`;
+      toast.success(actionMsg);
+
       if (typeof onReassigned === 'function') {
         onReassigned({
           targetSlotId: chosenSlot.id,
@@ -140,7 +161,10 @@ export default function ReassignSalonModal({
     }
   };
 
-  return (
+  const selectedSlot = availableSlots[selectedSlotIndex];
+  const canApply = Boolean(selectedSlot && !selectedSlot.isCurrent && !saving);
+
+  const modalContent = (
     <div
       style={{
         position: 'fixed',
@@ -197,11 +221,11 @@ export default function ReassignSalonModal({
                 gap: '5px'
               }}>
                 <IconLayers size={11} strokeWidth={2.5} />
-                LOGÍSTICA DE EVENTO
+                LOGÍSTICA Y REUBICACIÓN
               </span>
             </div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>
-              Reasignar Salón u Ocupación
+              Reasignar Fecha o Salón
             </h2>
           </div>
           <button
@@ -242,25 +266,31 @@ export default function ReassignSalonModal({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
               <IconBuilding size={13} strokeWidth={2} style={{ color: '#0284c7' }} />
-              <span><strong>Salón vinculado:</strong> <span style={{ color: '#0284c7', fontWeight: '800' }}>{currentSalon || 'No asignado'}</span></span>
+              <span><strong>Salón actual:</strong> <span style={{ color: '#0284c7', fontWeight: '800' }}>{currentSalon || 'No asignado'}</span></span>
             </div>
+            {currentDates.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                <IconCalendar size={13} strokeWidth={2} style={{ color: '#8b5cf6' }} />
+                <span><strong>Fecha actual en informe:</strong> <span style={{ color: '#7c3aed', fontWeight: '800' }}>{currentDates.join(', ')}</span></span>
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
               <IconTag size={13} strokeWidth={2} style={{ color: '#64748b' }} />
-              <span><strong>Ocupación vinculada:</strong> <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontSize: '11.5px', color: '#334155' }}>#{currentOcupacionId}</code></span>
+              <span><strong>Ocupación:</strong> <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontSize: '11.5px', color: '#334155' }}>#{currentOcupacionId}</code></span>
             </div>
           </div>
 
           <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#1e293b', marginBottom: '8px' }}>
-            Selecciona el salón/fecha de la reserva a donde transferir el informe:
+            Selecciona la fecha y salón de la reserva a donde trasladar el informe:
           </label>
 
           {loadingSlots ? (
             <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '13px' }}>
-              Cargando salones del evento...
+              Cargando salones y fechas del evento...
             </div>
           ) : availableSlots.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '13px' }}>
-              No se encontraron otros salones en esta reserva.
+              No se encontraron fechas o salones disponibles en esta reserva.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
@@ -283,13 +313,17 @@ export default function ReassignSalonModal({
                     }}
                   >
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '14px', fontWeight: '800', color: isSelected ? '#0369a1' : '#1e293b' }}>
                           {slot.salon}
                         </span>
                         {slot.isCurrent ? (
-                          <span style={{ fontSize: '11px', fontWeight: '700', background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
-                            ● Salón Actual
+                          <span style={{ fontSize: '11px', fontWeight: '700', background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                            ● Asignación Actual
+                          </span>
+                        ) : slot.isDateShift ? (
+                          <span style={{ fontSize: '11px', fontWeight: '800', background: '#ecfdf5', color: '#047857', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                            ★ Nueva Fecha de Reserva
                           </span>
                         ) : (
                           <span style={{ fontSize: '11px', fontWeight: '600', background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '6px' }}>
@@ -306,8 +340,8 @@ export default function ReassignSalonModal({
                         color: '#64748b',
                         marginTop: '4px'
                       }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <IconCalendar size={13} strokeWidth={2} style={{ color: '#0284c7' }} />
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: slot.isDateShift ? 700 : 500, color: slot.isDateShift ? '#047857' : '#0284c7' }}>
+                          <IconCalendar size={13} strokeWidth={2} />
                           <span>{slot.fecha}</span>
                         </span>
                         {slot.horario && (
@@ -375,7 +409,7 @@ export default function ReassignSalonModal({
                 )}
               </div>
               <span style={{ fontSize: '13px', fontWeight: '600', color: '#334155', lineHeight: 1.3 }}>
-                Actualizar también el nombre de salón y horario en el informe
+                Actualizar automáticamente fecha, salón y horario en el informe
               </span>
             </label>
           </div>
@@ -412,27 +446,35 @@ export default function ReassignSalonModal({
           <button
             type="button"
             onClick={handleApply}
-            disabled={saving || availableSlots.length === 0 || availableSlots[selectedSlotIndex]?.isCurrent}
+            disabled={!canApply}
             style={{
               padding: '8px 18px',
               fontSize: '13px',
               fontWeight: '700',
               color: '#ffffff',
-              background: (availableSlots[selectedSlotIndex]?.isCurrent) ? '#94a3b8' : 'linear-gradient(135deg, #005954 0%, #0284c7 100%)',
+              background: !canApply ? '#94a3b8' : 'linear-gradient(135deg, #005954 0%, #0284c7 100%)',
               border: 'none',
               borderRadius: '8px',
-              cursor: (saving || availableSlots.length === 0 || availableSlots[selectedSlotIndex]?.isCurrent) ? 'not-allowed' : 'pointer',
-              opacity: (saving || availableSlots.length === 0 || availableSlots[selectedSlotIndex]?.isCurrent) ? 0.6 : 1,
+              cursor: !canApply ? 'not-allowed' : 'pointer',
+              opacity: !canApply ? 0.6 : 1,
               display: 'flex',
               alignItems: 'center',
               gap: '6px'
             }}
           >
             <IconRefreshCw size={14} />
-            {saving ? 'Reasignando...' : (availableSlots[selectedSlotIndex]?.isCurrent ? 'Salón Ya Asignado' : 'Aplicar Reasignación')}
+            {saving
+              ? 'Trasladando...'
+              : (selectedSlot?.isCurrent
+                  ? 'Salón y Fecha Ya Asignados'
+                  : (selectedSlot?.isDateShift
+                      ? `Trasladar a ${selectedSlot.fecha}`
+                      : 'Aplicar Reasignación'))}
           </button>
         </div>
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

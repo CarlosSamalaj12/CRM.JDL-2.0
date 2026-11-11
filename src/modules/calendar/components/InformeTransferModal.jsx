@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 // ─── Iconografía Minimalista SVG Moderna ───
 const IconSwap = () => (
@@ -126,9 +127,9 @@ export default function InformeTransferModal({
 
       const fallbackSlot = availableSlots[0];
       const target = matchingSlot || fallbackSlot;
-      // Si no hay slot en la misma fecha, la sugerencia por defecto es eliminar solo ese día huérfano
-      // para evitar mover la fecha o salón del evento accidentalmente.
-      const defaultAction = matchingSlot ? 'reassign' : 'delete';
+      // Al cambiar la fecha o salón de un evento, la sugerencia por defecto es reasignar/trasladar
+      // al nuevo slot disponible para preservar íntegros los menús y la logística del usuario.
+      const defaultAction = 'reassign';
 
       initial[key] = {
         informeId: c.informeId,
@@ -177,7 +178,7 @@ export default function InformeTransferModal({
     }
   };
 
-  return (
+  return createPortal(
     <div
       style={{
         position: 'fixed',
@@ -391,7 +392,11 @@ export default function InformeTransferModal({
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <IconSwap /> Reasignar
+                    <IconSwap /> {!availableSlots.some(s => {
+                      const st = String(s.dateStart || s.date || '').slice(0, 10);
+                      const en = String(s.dateEnd || st).slice(0, 10);
+                      return c.fecha >= st && c.fecha <= en;
+                    }) ? 'Trasladar a Nueva Fecha' : 'Reasignar'}
                   </button>
 
                   {/* Botón Archivar */}
@@ -624,6 +629,7 @@ export default function InformeTransferModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
