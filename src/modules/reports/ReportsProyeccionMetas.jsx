@@ -1759,7 +1759,7 @@ th.right{text-align:right}</style></head><body>
           })()}
 
           {/* ── Tabla resumen por mes ── */}
-          <div className="reports-table-wrap" style={{ maxHeight: '340px' }}>
+          <div className="reports-table-wrap" style={{ maxHeight: '340px', overflowY: 'auto', overflowX: 'auto' }}>
             <table className="reports-table" style={{ minWidth: '600px' }}>
               <thead>
                 <tr>
@@ -1829,7 +1829,7 @@ th.right{text-align:right}</style></head><body>
             </div>
           </div>
 
-          <div className="reports-table-wrap" style={{ maxHeight: '600px' }}>
+          <div className="reports-table-wrap" style={{ maxHeight: '600px', overflowY: 'auto', overflowX: 'auto' }}>
             <table className="reports-table" style={{ minWidth: '1100px' }}>
               <thead>
                 <tr>

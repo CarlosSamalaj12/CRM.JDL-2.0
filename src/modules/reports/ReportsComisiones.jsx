@@ -1214,7 +1214,7 @@ th.right{text-align:right}</style></head><body>
             </div>
           </div>
 
-          <div className="reports-table-wrap" style={{ maxHeight: '500px' }}>
+          <div className="reports-table-wrap" style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'auto' }}>
             <table className="reports-table" style={{ minWidth: '800px' }}>
               <thead>
                 <tr>
