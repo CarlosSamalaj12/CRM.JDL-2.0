@@ -2760,7 +2760,7 @@ export default function ReservationForm() {
                         <span>Fechas (Desde - Hasta)</span>
                         <span>Horario (Inicio - Fin)</span>
                         <span>Estado Individual</span>
-                        <span style={{ textAlign: 'center' }}>Acción</span>
+                        <span style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Acción</span>
                       </div>
 
                       <div className="res-bento-table-rows">
@@ -2786,7 +2786,8 @@ export default function ReservationForm() {
                                   minWidth: '28px',
                                   maxWidth: '28px',
                                   padding: 0,
-                                  margin: 0,
+                                  margin: '0 auto',
+                                  justifySelf: 'center',
                                   background: 'transparent',
                                   border: 'none',
                                   boxShadow: 'none',
@@ -2827,7 +2828,7 @@ export default function ReservationForm() {
                                 onChange={e => handleSlotChange(index, 'pax', e.target.value)}
                                 placeholder="PAX"
                                 className="res-bento-input-pax"
-                                style={{ background: '#ffffff', color: '#0f172a' }}
+                                style={{ background: '#ffffff', color: '#0f172a', margin: '0 auto', justifySelf: 'center' }}
                               />
 
                               {/* 4. Fechas (Desde - Hasta) */}
@@ -2888,7 +2889,8 @@ export default function ReservationForm() {
                                   minWidth: '30px',
                                   maxWidth: '30px',
                                   padding: 0,
-                                  margin: 0,
+                                  margin: '0 auto',
+                                  justifySelf: 'center',
                                   background: 'transparent',
                                   border: 'none',
                                   boxShadow: 'none',

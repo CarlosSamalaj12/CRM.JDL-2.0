@@ -732,35 +732,160 @@ export default function InformeView() {
     }
   };
 
-  // Botones de acción para el header (segunda línea)
-   const informeActionsEl = useMemo(() => (
-     <>
-       <button onClick={handleVolver} className="btn-secondary" data-tooltip="Volver">
-         <IconArrowLeft size={16} /> <span className="btn-text">Volver</span>
-       </button>
-       <button onClick={handleExportPDF} className="btn-success" disabled={pdfLoading} data-tooltip="Descargar como PDF">
-         <IconDownload size={16} /> <span className="btn-text">{pdfLoading ? 'Generando...' : 'Exportar PDF'}</span>
-       </button>
-       <button onClick={handlePrint} className="btn-primary" data-tooltip="Imprimir informe">
-         <IconPrinter size={16} /> <span className="btn-text">Imprimir</span>
-       </button>
-       <button onClick={() => setColabOpen(!colabOpen)}
-         className={`btn-secondary ${colabOpen ? 'colab-toggle-active' : ''}`}
-         data-tooltip={colabOpen ? 'Ocultar panel' : 'Mostrar panel de colaboración'}>
-         <IconMessageCircle size={16} /> <span className="btn-text">Colaborar</span>
-       </button>
-       {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
-         <button onClick={() => setShowReassignModal(true)} className="btn-secondary" data-tooltip="Reasignar este informe a otro salón del evento">
-           <IconRefreshCw size={16} /> <span className="btn-text">Reasignar Salón</span>
-         </button>
-       )}
-       {user && ['Admin','Vendedor','FrontOffice','Eventos'].includes(user.rol) && (
-         <button onClick={() => navigate(`/informe/pos/${informe?.id_ocupacion}`)} className="btn-secondary" data-tooltip="Editar informe">
-           <IconFileText size={16} /> <span className="btn-text">Editar</span>
-         </button>
-       )}
-     </>
-   ), [pdfLoading, colabOpen, user, informe?.id_ocupacion, navigate, setShowReassignModal]);
+  // Botones de acción para el header (segunda línea) - agrupados armónicamente
+  const informeActionsEl = useMemo(() => (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+      gap: '12px',
+      flexWrap: 'wrap',
+    }}>
+      {/* Grupo izquierdo: Retorno */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button
+          type="button"
+          onClick={handleVolver}
+          className="btn-secondary"
+          data-tooltip="Volver"
+          style={{
+            padding: '0.45rem 0.9rem',
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            borderRadius: '8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            border: '1px solid #cbd5e1',
+            background: '#ffffff',
+            color: '#334155',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          }}
+        >
+          <IconArrowLeft size={15} /> <span className="btn-text">Volver</span>
+        </button>
+      </div>
+
+      {/* Grupo derecho: Acciones de exportación y edición agrupadas */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        flexWrap: 'wrap',
+        marginLeft: 'auto',
+      }}>
+        <button
+          type="button"
+          onClick={handleExportPDF}
+          className="btn-success"
+          disabled={pdfLoading}
+          data-tooltip="Descargar como PDF"
+          style={{
+            padding: '0.45rem 1rem',
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            borderRadius: '8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)',
+          }}
+        >
+          <IconDownload size={15} /> <span className="btn-text">{pdfLoading ? 'Generando...' : 'Exportar PDF'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="btn-primary"
+          data-tooltip="Imprimir informe"
+          style={{
+            padding: '0.45rem 1rem',
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            borderRadius: '8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
+          }}
+        >
+          <IconPrinter size={15} /> <span className="btn-text">Imprimir</span>
+        </button>
+
+        {/* Separador vertical sutil */}
+        <div style={{ width: '1px', height: '22px', background: '#e2e8f0', margin: '0 4px' }} />
+
+        <button
+          type="button"
+          onClick={() => setColabOpen(!colabOpen)}
+          className={`btn-secondary ${colabOpen ? 'colab-toggle-active' : ''}`}
+          data-tooltip={colabOpen ? 'Ocultar panel' : 'Mostrar panel de colaboración'}
+          style={{
+            padding: '0.45rem 0.9rem',
+            fontSize: '0.82rem',
+            fontWeight: 650,
+            borderRadius: '8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            border: colabOpen ? '1.5px solid #4f46e5' : '1px solid #cbd5e1',
+            background: colabOpen ? '#eef2ff' : '#ffffff',
+            color: colabOpen ? '#4338ca' : '#475569',
+          }}
+        >
+          <IconMessageCircle size={15} /> <span className="btn-text">Colaborar</span>
+        </button>
+
+        {user && ['Admin', 'Vendedor', 'FrontOffice', 'Eventos'].includes(user.rol) && (
+          <button
+            type="button"
+            onClick={() => setShowReassignModal(true)}
+            className="btn-secondary"
+            data-tooltip="Reasignar este informe a otro salón del evento"
+            style={{
+              padding: '0.45rem 0.9rem',
+              fontSize: '0.82rem',
+              fontWeight: 650,
+              borderRadius: '8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: '#334155',
+            }}
+          >
+            <IconRefreshCw size={15} /> <span className="btn-text">Reasignar Salón</span>
+          </button>
+        )}
+
+        {user && ['Admin', 'Vendedor', 'FrontOffice', 'Eventos'].includes(user.rol) && (
+          <button
+            type="button"
+            onClick={() => navigate(`/informe/pos/${informe?.id_ocupacion}`)}
+            className="btn-secondary"
+            data-tooltip="Editar informe"
+            style={{
+              padding: '0.45rem 0.9rem',
+              fontSize: '0.82rem',
+              fontWeight: 650,
+              borderRadius: '8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: '#334155',
+            }}
+          >
+            <IconFileText size={15} /> <span className="btn-text">Editar</span>
+          </button>
+        )}
+      </div>
+    </div>
+  ), [handleVolver, handleExportPDF, pdfLoading, handlePrint, colabOpen, user, informe?.id_ocupacion, navigate, setShowReassignModal]);
 
   // Pasar las acciones al header (solo en desktop, móvil usa barra inferior)
   useEffect(() => {
