@@ -183,6 +183,7 @@ export default function Login() {
     // 2. Suscripción proactiva a onAuthStateChanged para sesiones demoradas o restauradas por IndexedDB
     const unsubscribeAuth = auth.onAuthStateChanged(async (firebaseUser) => {
       if (!firebaseUser || cancelled) return;
+      if (googleLoginRef.current) return;
       if (authService.getCurrentUser()) return;
 
       const startedAtVal = typeof window !== 'undefined' ? localStorage.getItem('google_auth_started_at') : null;
@@ -235,23 +236,25 @@ export default function Login() {
     if (googleLoginRef.current) return;
     googleLoginRef.current = true;
 
-    // IMPORTANTE: NO llamamos a setLoading(true) aquí antes de signInWithPopup.
-    // En iOS Safari y Android Chrome, cualquier mutación de DOM o deshabilitar el botón
-    // antes de abrir la ventana destruye el "User Activation Token" (gesto táctil),
-    // haciendo que el navegador móvil bloquee el popup como 'auth/popup-blocked'.
+    const feedbackTimer = setTimeout(() => {
+      if (googleLoginRef.current) {
+        setLoading(true);
+        setVerifyingText('Conectando con Google Workspace...');
+      }
+    }, 0);
+
     let loadingToast = null;
     try {
       const firebaseUser = await firebaseService.loginWithGoogle();
       if (!firebaseUser) {
-        // Redireccionando a Google (fallback nativo si el navegador bloqueó el popup)
         setLoading(true);
-        setVerifyingText('Conectando con Google Workspace...');
+        setVerifyingText('Redirigiendo a Google Workspace...');
         return;
       }
 
       // Usuario autenticado con éxito por popup
       setLoading(true);
-      setVerifyingText('Sincronizando con el servidor corporativo...');
+      setVerifyingText('Sincronizando con el servidor...');
       loadingToast = toast.loading('Sincronizando con el servidor...');
 
       const localUser = await authService.loginFirebase(firebaseUser);
@@ -290,11 +293,12 @@ export default function Login() {
         toast.error(err.message || 'No se pudo iniciar sesión con tu cuenta de Google.', { duration: 4000 });
       }
     } finally {
-      // Pequeño cooldown para evitar re-clics inmediatos
+      clearTimeout(feedbackTimer);
       setTimeout(() => {
         googleLoginRef.current = false;
         setLoading(false);
-      }, 600);
+        setVerifyingText('');
+      }, 400);
     }
   };
 
@@ -414,28 +418,6 @@ export default function Login() {
               </p>
             </div>
           </div>
-
-          {/* Indicador de verificación corporativa en progreso (útil para móviles y conexiones lentas) */}
-          {loading && verifyingText && (
-            <div className="loginVerifyingNotice" style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              padding: '11px 16px',
-              background: 'rgba(2, 132, 199, 0.08)',
-              border: '1px solid rgba(2, 132, 199, 0.28)',
-              borderRadius: '12px',
-              marginBottom: '16px',
-              color: '#0369a1',
-              fontSize: '0.88rem',
-              fontWeight: 600,
-              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.08)'
-            }}>
-              <span className="loginSpinner" style={{ borderColor: '#0284c7', borderTopColor: 'transparent', width: '16px', height: '16px', borderWidth: '2px' }} />
-              <span>{verifyingText}</span>
-            </div>
-          )}
 
           {/* Botón Principal: Continuar con Google Workspace */}
           <div className="loginGoogleBtnContainer">
@@ -962,9 +944,11 @@ export default function Login() {
         }
 
         .loginGoogleBtn:disabled {
-          opacity: 0.75;
+          opacity: 0.85;
           cursor: not-allowed;
-          background: #f1f5f9;
+          pointer-events: none;
+          background: #f0f9ff;
+          border-color: #bae6fd;
         }
 
         .loginGoogleIcon {

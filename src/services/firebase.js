@@ -12,9 +12,9 @@ import {
 // Firebase Config mapping environment variables.
 // Uses mock credentials as a fallback to prevent runtime boot crash if not yet configured in .env.
 // Determinar authDomain:
-// En producción (appjardinesdellago.tech) o cuando VITE_FIREBASE_AUTH_PROXY=true en un dominio real
-// (no localhost), usa window.location.host para que /__/auth/* corra en primera persona (first-party)
-// y evite por completo el bloqueo de sessionStorage en iOS Safari / WebKit ITP.
+// Solo usar el proxy first-party (window.location.host) cuando VITE_FIREBASE_AUTH_PROXY=true
+// esté activado explícitamente en .env (y el servidor web/Nginx en producción reenvíe /__/auth/*
+// y /__/firebase/* al backend en lugar de devolver index.html).
 const currentHost = typeof window !== 'undefined' ? (window.location?.host || '') : '';
 const currentHostname = typeof window !== 'undefined' ? (window.location?.hostname || '') : '';
 const isLocalhost =
@@ -24,11 +24,9 @@ const isLocalhost =
   currentHostname.startsWith('192.168.');
 
 const useFirstPartyAuthProxy =
-  !isLocalhost && (
-    currentHostname === 'appjardinesdellago.tech' ||
-    currentHostname.endsWith('.appjardinesdellago.tech') ||
-    String(import.meta.env.VITE_FIREBASE_AUTH_PROXY || '').toLowerCase() === 'true'
-  );
+  !isLocalhost &&
+  String(import.meta.env.VITE_FIREBASE_AUTH_PROXY || '').toLowerCase() === 'true' &&
+  Boolean(currentHost);
 
 const resolvedAuthDomain = useFirstPartyAuthProxy
   ? currentHost
@@ -75,19 +73,15 @@ export const firebaseService = {
   },
 
   async loginWithGoogle() {
-    // Registrar marca de tiempo persistente para detectar retorno en conexiones móviles lentas
+    // Limpiar cualquier bandera residual de redirección antes de intentar popup
     try {
-      localStorage.setItem('google_auth_started_at', String(Date.now()));
-      sessionStorage.setItem('pending_google_redirect', '1');
+      localStorage.removeItem('google_auth_started_at');
+      sessionStorage.removeItem('pending_google_redirect');
     } catch {}
 
     // Intentar primero signInWithPopup para todos los dispositivos (incluyendo móviles).
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      try {
-        localStorage.removeItem('google_auth_started_at');
-        sessionStorage.removeItem('pending_google_redirect');
-      } catch {}
       return result?.user || null;
     } catch (error) {
       // NOTA CRÍTICA: NO usar error?.message?.includes('popup') porque códigos normales
@@ -131,6 +125,10 @@ export const firebaseService = {
         }
 
         console.warn('[Firebase] Popup bloqueado por el navegador. Iniciando redirección nativa a Google...');
+        try {
+          localStorage.setItem('google_auth_started_at', String(Date.now()));
+          sessionStorage.setItem('pending_google_redirect', '1');
+        } catch {}
         await signInWithRedirect(auth, googleProvider);
         return null;
       }
@@ -175,13 +173,13 @@ export const firebaseService = {
         return auth.currentUser;
       }
 
-      // 3. Si venía de una autenticación de Google reciente (hasta 2 min), esperar a onAuthStateChanged
+      // 3. Si venía de una redirección de Google reciente, esperar máximo 5s a onAuthStateChanged
       const user = await new Promise((resolve) => {
         let unsub = () => {};
         const timeout = setTimeout(() => {
           unsub();
           resolve(null);
-        }, 7500);
+        }, 5000);
 
         unsub = auth.onAuthStateChanged((u) => {
           if (u) {
