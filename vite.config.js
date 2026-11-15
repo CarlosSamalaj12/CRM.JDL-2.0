@@ -88,6 +88,15 @@ export default defineConfig(({ mode }) => {
             });
           }
         },
+        // Proxy first-party para Firebase Auth (/__/auth y /__/firebase)
+        '/__/auth': {
+          target: `http://127.0.0.1:${backendPort}`,
+          changeOrigin: true,
+        },
+        '/__/firebase': {
+          target: `http://127.0.0.1:${backendPort}`,
+          changeOrigin: true,
+        },
         // Socket.IO: necesita ws:true para el handshake WebSocket
         '/socket.io': {
           target: `http://127.0.0.1:${backendPort}`,

@@ -96,6 +96,7 @@ self.addEventListener('fetch', (event) => {
 
   // 1. Skip API, Socket.io, Firebase, and dynamic Vite assets entirely (do not cache)
   if (
+    url.pathname.startsWith('/__/') ||
     url.pathname.includes('api') || 
     url.pathname.includes('socket.io') ||
     url.pathname.includes('firebase-messaging-sw.js') ||

@@ -9872,6 +9872,71 @@ async function start() {
       return res.redirect(`/checklist-public/${req.params.token}`);
     });
 
+    // ─── PROXY FIRST-PARTY PARA FIREBASE AUTH (Evita bloqueo de sessionStorage/ITP en iOS Safari) ───
+    const firebaseAuthHost = process.env.VITE_FIREBASE_AUTH_DOMAIN || 'authcrmjdl.firebaseapp.com';
+    app.get('/__/firebase/init.json', (req, res) => {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.status(200).json({
+        apiKey: process.env.VITE_FIREBASE_API_KEY || '',
+        authDomain: req.headers.host || firebaseAuthHost,
+        projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'authcrmjdl',
+        storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || 'authcrmjdl.firebasestorage.app',
+        messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+        appId: process.env.VITE_FIREBASE_APP_ID || '',
+      });
+    });
+
+    app.all('/__/auth/*', async (req, res) => {
+      try {
+        const targetUrl = `https://${firebaseAuthHost}${req.originalUrl}`;
+        const forwardHeaders = {
+          'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0',
+          'Accept': req.headers['accept'] || '*/*',
+          'Accept-Language': req.headers['accept-language'] || 'es-ES,es;q=0.9,en;q=0.8',
+        };
+        if (req.headers['content-type']) {
+          forwardHeaders['Content-Type'] = req.headers['content-type'];
+        }
+        if (req.headers['cookie']) {
+          forwardHeaders['Cookie'] = req.headers['cookie'];
+        }
+
+        const fetchOptions = {
+          method: req.method,
+          headers: forwardHeaders,
+          redirect: 'manual',
+        };
+
+        if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+          fetchOptions.body = typeof req.body === 'string'
+            ? req.body
+            : new URLSearchParams(req.body).toString();
+        }
+
+        const upstream = await fetch(targetUrl, fetchOptions);
+
+        const passthroughHeaders = [
+          'content-type',
+          'cache-control',
+          'location',
+          'set-cookie',
+          'cross-origin-opener-policy',
+          'content-security-policy',
+        ];
+        for (const h of passthroughHeaders) {
+          const val = upstream.headers.get(h);
+          if (val) res.setHeader(h, val);
+        }
+
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        return res.status(upstream.status).send(buf);
+      } catch (err) {
+        console.error('[Firebase Auth Proxy Error]:', err);
+        return res.status(502).send('Error conectando con el servicio de autenticación.');
+      }
+    });
+
     // Fallback wildcard handler registered AFTER dynamic ESM routes
     app.get("*", (req, res) => {
       if (req.path.startsWith("/api/")) {

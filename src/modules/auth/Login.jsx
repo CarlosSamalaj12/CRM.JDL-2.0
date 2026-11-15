@@ -21,6 +21,7 @@ function getHomePath(user) {
 export default function Login() {
   const [searchParams] = useSearchParams();
   const initialIsUpdated = searchParams.get('update') === '1';
+  const isUpdateBootRef = useRef(initialIsUpdated);
   const updateVersion = searchParams.get('v') || '';
   const [showUpdateNotice, setShowUpdateNotice] = useState(initialIsUpdated);
   const startedAt = typeof window !== 'undefined' ? localStorage.getItem('google_auth_started_at') : null;
@@ -52,6 +53,7 @@ export default function Login() {
       sessionStorage.removeItem('last_login_redirect_time');
       // Limpiar query params de la barra de direcciones para evitar rebotes
       window.history.replaceState({}, document.title, window.location.pathname);
+      setTimeout(() => { isUpdateBootRef.current = false; }, 300);
     } else {
       // ── Detector de bucles de redirección (Auto-limpieza de caché) ──
       const now = Date.now();
@@ -118,7 +120,7 @@ export default function Login() {
 
     // 1. Resolver resultado de redirección (si el navegador venía de una redirección de Google)
     const completeRedirectLogin = async () => {
-      if (initialIsUpdated) return;
+      if (isUpdateBootRef.current) return;
       try {
         const startedAt = typeof window !== 'undefined' ? localStorage.getItem('google_auth_started_at') : null;
         const isRecent = startedAt && (Date.now() - Number(startedAt) < 120000);
@@ -189,7 +191,7 @@ export default function Login() {
 
       // Si el usuario NO acaba de iniciar un flujo de login con Google (ej. cerró sesión o hubo actualización),
       // NO auto-restaurar la sesión desde IndexedDB; cerrar la sesión residual de Firebase.
-      if (initialIsUpdated || !isPendingRedirectFlow) {
+      if (isUpdateBootRef.current || !isPendingRedirectFlow) {
         firebaseService.logout().catch(() => {});
         return;
       }

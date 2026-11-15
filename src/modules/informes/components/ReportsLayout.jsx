@@ -38,12 +38,8 @@ export default function ReportsLayout() {
     intervalMs: 3 * 60 * 60 * 1000,
   });
 
-  // Auto-ocultar el botón flotante de menú al scrollear hacia abajo
-  const [fabVisible, setFabVisible] = useState(true);
   const [informeActions, setInformeActions] = useState(null);
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
-  const lastScrollY = useRef(0);
-  const hideTimerRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -66,31 +62,6 @@ export default function ReportsLayout() {
     return () => {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
-    };
-  }, []);
-
-  useEffect(() => {
-    const target = document.scrollingElement || document.documentElement;
-    const handler = () => {
-      const y = window.scrollY || target.scrollTop || 0;
-      const delta = y - lastScrollY.current;
-      lastScrollY.current = y;
-      if (y < 8) {
-        setFabVisible(true);
-        return;
-      }
-      if (delta > 8) {
-        setFabVisible(false);
-      } else if (delta < -8) {
-        setFabVisible(true);
-      }
-      clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = setTimeout(() => setFabVisible(true), 2200);
-    };
-    window.addEventListener('scroll', handler, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handler);
-      clearTimeout(hideTimerRef.current);
     };
   }, []);
 
@@ -144,10 +115,10 @@ export default function ReportsLayout() {
   return (
     <InformeActionsContext.Provider value={useMemo(() => ({ setInformeActions }), [])}>
     <div className={`reports-root app-shell informes-shell${isInformeView ? ' is-informe-view' : ''}${isPosView ? ' is-pos-view' : ''}`}>
-      {/* Botón de Hamburguesa Flotante en Móvil (oculto en constructor POS para no tapar botón Guardar) */}
-      {isMobile && !isPosView && (
+      {/* Botón de Hamburguesa Flotante (oculto en constructor POS para no tapar botón Guardar) */}
+      {!isPosView && (
         <button
-          className={`mobile-hamburger-btn${fabVisible ? ' fab-visible' : ' fab-hidden'}`}
+          className="mobile-hamburger-btn fab-visible"
           onClick={() => setIsMobileOpen(true)}
           aria-label="Abrir menú"
         >
@@ -452,35 +423,27 @@ export default function ReportsLayout() {
       {/* Footer con versión (esquina inferior derecha) */}
 
       <style>{`
+        .reports-root .mobile-hamburger-btn,
+        .informes-shell .mobile-hamburger-btn {
+          display: flex !important;
+          position: fixed !important;
+          bottom: 16px !important;
+          right: 16px !important;
+          width: 44px !important;
+          height: 44px !important;
+          border-radius: 50% !important;
+          background: rgba(20, 184, 166, 0.86) !important;
+          color: #ffffff !important;
+          border: none !important;
+          box-shadow: 0 3px 10px rgba(20, 184, 166, 0.28) !important;
+          z-index: 10001 !important;
+          align-items: center !important;
+          justify-content: center !important;
+          cursor: pointer !important;
+          padding: 0 !important;
+          transition: transform 0.25s ease, opacity 0.25s ease, background 0.2s ease, box-shadow 0.2s ease !important;
+        }
         @media (max-width: 767px) {
-            .reports-root .mobile-hamburger-btn,
-            .informes-shell .mobile-hamburger-btn {
-              display: flex !important;
-              position: fixed !important;
-              bottom: 16px !important;
-              right: 16px !important;
-              width: 44px !important;
-              height: 44px !important;
-              border-radius: 50% !important;
-              background: rgba(20, 184, 166, 0.86) !important;
-              color: #ffffff !important;
-              border: none !important;
-              box-shadow: 0 3px 10px rgba(20, 184, 166, 0.28) !important;
-              z-index: 10001 !important;
-              align-items: center !important;
-              justify-content: center !important;
-              cursor: pointer !important;
-              padding: 0 !important;
-              transition: transform 0.25s ease, opacity 0.25s ease, background 0.2s ease, box-shadow 0.2s ease !important;
-            }
-          }
-          @media (min-width: 768px) {
-            .reports-root .mobile-hamburger-btn,
-            .informes-shell .mobile-hamburger-btn {
-              display: none !important;
-            }
-          }
-          @media (max-width: 767px) {
             .informes-shell .app-header {
               padding: 0.55rem 0.7rem 0.65rem !important;
               display: flex !important;

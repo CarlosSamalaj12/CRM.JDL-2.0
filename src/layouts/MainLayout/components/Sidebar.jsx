@@ -603,6 +603,102 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
           .lum-sidebar {
             container-type: inline-size;
             container-name: sidebar;
+            padding-bottom: 12px !important;
+          }
+
+          .lum-sidebar .lum-sideFooter {
+            gap: 6px !important;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+          }
+
+          .lum-sideFooterActions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            width: 100%;
+          }
+
+          body:not(.informes-theme) #appShell.lum-calendar .lum-sidebar .lum-footerBtn,
+          .lum-sidebar .lum-footerBtn {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 6px !important;
+            height: 34px !important;
+            min-height: 34px !important;
+            padding: 0 8px !important;
+            border-radius: 8px !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background: transparent !important;
+            background-color: transparent !important;
+            color: #cbd5e1 !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            box-shadow: none !important;
+            cursor: pointer !important;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+          }
+
+          .lum-sidebar .lum-footerBtn .material-symbols-outlined {
+            font-size: 17px !important;
+            line-height: 1 !important;
+            flex-shrink: 0 !important;
+          }
+
+          body:not(.informes-theme) #appShell.lum-calendar .lum-sidebar .lum-footerBtn:hover,
+          body:not(.informes-theme) #appShell.lum-calendar .lum-sidebar .lum-footerBtn.isActive,
+          .lum-sidebar .lum-footerBtn:hover,
+          .lum-sidebar .lum-footerBtn.isActive {
+            background: rgba(255, 255, 255, 0.08) !important;
+            color: #ffffff !important;
+            border-color: rgba(255, 255, 255, 0.2) !important;
+          }
+
+          body:not(.informes-theme) #appShell.lum-calendar .lum-sidebar .lum-footerBtn.exit-btn:hover,
+          .lum-sidebar .lum-footerBtn.exit-btn:hover {
+            background: rgba(239, 68, 68, 0.16) !important;
+            color: #fca5a5 !important;
+            border-color: rgba(239, 68, 68, 0.35) !important;
+          }
+
+          @container sidebar (max-width: 180px) {
+            .lum-sideFooterActions {
+              grid-template-columns: 1fr;
+            }
+            .lum-footerBtn span:not(.material-symbols-outlined) {
+              display: none;
+            }
+          }
+
+          /* Scroll independiente solo en la lista de navegación para no cortar el footer ni mover el calendario */
+          .lum-sidebar .lum-sidebarBrand,
+          .lum-sidebar .lum-sideCta,
+          .lum-sidebar .sideUserProfile,
+          .lum-sidebar .lum-sideFooter {
+            flex-shrink: 0;
+          }
+
+          .lum-sidebar .lum-sideNav {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+          }
+
+          .lum-sidebar .lum-sideNav .lum-sideItem {
+            flex-shrink: 0;
+          }
+
+          .lum-sidebar .lum-sideNav::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
           }
 
           .sideUserProfile {
@@ -1645,22 +1741,27 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
         </div>
       )}
       <div className="lum-sideFooter">
-        <button 
-          className={`lum-sideItem ${location.pathname === '/support' ? 'isActive' : ''}`} 
-          type="button"
-          onClick={() => setIsSupportOpen(true)}
-        >
-          <span className="material-symbols-outlined">support_agent</span>
-          <span>Soporte</span>
-        </button>          <button 
-            className="lum-sideItem exit-btn" 
+        <div className="lum-sideFooterActions">
+          <button 
+            className={`lum-footerBtn ${location.pathname === '/support' ? 'isActive' : ''}`} 
+            type="button"
+            onClick={() => setIsSupportOpen(true)}
+            title="Soporte Técnico"
+          >
+            <span className="material-symbols-outlined">support_agent</span>
+            <span>Soporte</span>
+          </button>
+          <button 
+            className="lum-footerBtn exit-btn" 
             type="button" 
             onClick={handleLogout}
+            title="Cerrar sesión"
           >
             <span className="material-symbols-outlined">logout</span>
-            <span>Cerrar sesión</span>
+            <span>Salir</span>
           </button>
-          <VersionFooter variant="dark" style={{ marginTop: '10px', width: '100%', padding: '4px 0' }} />
+        </div>
+        <VersionFooter variant="dark" style={{ marginTop: '2px', width: '100%', padding: '2px 0' }} />
       </div>
     </aside>
     </>

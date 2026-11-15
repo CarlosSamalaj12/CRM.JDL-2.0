@@ -11,9 +11,32 @@ import {
 
 // Firebase Config mapping environment variables.
 // Uses mock credentials as a fallback to prevent runtime boot crash if not yet configured in .env.
+// Determinar authDomain:
+// En producción (appjardinesdellago.tech) o cuando VITE_FIREBASE_AUTH_PROXY=true en un dominio real
+// (no localhost), usa window.location.host para que /__/auth/* corra en primera persona (first-party)
+// y evite por completo el bloqueo de sessionStorage en iOS Safari / WebKit ITP.
+const currentHost = typeof window !== 'undefined' ? (window.location?.host || '') : '';
+const currentHostname = typeof window !== 'undefined' ? (window.location?.hostname || '') : '';
+const isLocalhost =
+  !currentHostname ||
+  currentHostname === 'localhost' ||
+  currentHostname === '127.0.0.1' ||
+  currentHostname.startsWith('192.168.');
+
+const useFirstPartyAuthProxy =
+  !isLocalhost && (
+    currentHostname === 'appjardinesdellago.tech' ||
+    currentHostname.endsWith('.appjardinesdellago.tech') ||
+    String(import.meta.env.VITE_FIREBASE_AUTH_PROXY || '').toLowerCase() === 'true'
+  );
+
+const resolvedAuthDomain = useFirstPartyAuthProxy
+  ? currentHost
+  : (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "crm-jardines-del-lago.firebaseapp.com");
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyForInitialSetupToPreventCrash",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "crm-jardines-del-lago.firebaseapp.com",
+  authDomain: resolvedAuthDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "crm-jardines-del-lago",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "crm-jardines-del-lago.appspot.com",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1234567890",
@@ -67,15 +90,46 @@ export const firebaseService = {
       } catch {}
       return result?.user || null;
     } catch (error) {
-      // Si el navegador bloqueó la ventana emergente, recurrir a redirección nativa
+      // NOTA CRÍTICA: NO usar error?.message?.includes('popup') porque códigos normales
+      // como 'auth/popup-closed-by-user' y 'auth/cancelled-popup-request' incluyen la palabra "popup"
+      // y desviaban por error hacia signInWithRedirect en iPhone!
+      const isUserCancelled =
+        error?.code === 'auth/popup-closed-by-user' ||
+        error?.code === 'auth/cancelled-popup-request';
+
       const isPopupBlocked =
-        error?.code === 'auth/popup-blocked' ||
-        error?.code === 'auth/operation-not-supported' ||
-        error?.code === 'auth/web-storage-unsupported' ||
-        error?.message?.includes('popup') ||
-        error?.message?.includes('Cross-Origin-Opener-Policy');
+        !isUserCancelled && (
+          error?.code === 'auth/popup-blocked' ||
+          error?.code === 'auth/operation-not-supported-in-this-environment' ||
+          error?.code === 'auth/operation-not-supported' ||
+          error?.code === 'auth/web-storage-unsupported' ||
+          error?.message?.includes('Cross-Origin-Opener-Policy')
+        );
 
       if (isPopupBlocked) {
+        const isSameOriginAuth =
+          typeof window !== 'undefined' &&
+          resolvedAuthDomain === window.location?.host;
+
+        const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+        const isIOS = /iPhone|iPad|iPod/i.test(ua) || (typeof navigator !== 'undefined' && navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+        // En iOS con authDomain cruzado (*.firebaseapp.com), signInWithRedirect falla siempre
+        // con "missing initial state" por el particionado de sessionStorage (ITP).
+        // Solo redirigir si el proxy first-party (/__/auth) está activo en el mismo dominio,
+        // o si no es un entorno iOS con dominio cruzado.
+        if (isIOS && !isSameOriginAuth) {
+          try {
+            localStorage.removeItem('google_auth_started_at');
+            sessionStorage.removeItem('pending_google_redirect');
+          } catch {}
+          const iosPopupErr = new Error(
+            'Safari bloqueó la ventana emergente de Google. En tu iPhone ve a Configuración > Safari y desactiva "Bloquear ventanas emergentes", o abre el enlace directamente en Safari/Chrome.'
+          );
+          iosPopupErr.code = 'auth/ios-popup-blocked';
+          throw iosPopupErr;
+        }
+
         console.warn('[Firebase] Popup bloqueado por el navegador. Iniciando redirección nativa a Google...');
         await signInWithRedirect(auth, googleProvider);
         return null;
