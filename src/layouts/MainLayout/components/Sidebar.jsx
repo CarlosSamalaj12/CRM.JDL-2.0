@@ -56,6 +56,7 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
   const userRole = String(user.role || '').trim().toLowerCase();
   const isAdmin = userRole === 'admin';
   const isCrmUser = userRole !== 'eventos' && userRole !== 'coordinador';
+  const canAuthorizeDiscount = user.canAuthorizeDiscount === true || isAdmin;
 
   const handleLogout = () => {
     authService.clearSession();
@@ -135,6 +136,47 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
       }
     } catch {}
   }, []);
+
+  const [pendingDiscountCount, setPendingDiscountCount] = useState(0);
+
+  const fetchPendingDiscountCount = useCallback(async () => {
+    if (!canAuthorizeDiscount) return;
+    try {
+      const res = await fetch(`${NOTIF_API}/api/discount-auth/conteo-pendientes${user?.id ? `?userId=${encodeURIComponent(user.id)}` : ''}`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPendingDiscountCount(Number(data.count || 0));
+      }
+    } catch {}
+  }, [canAuthorizeDiscount, user?.id]);
+
+  useEffect(() => {
+    if (!canAuthorizeDiscount) return;
+    fetchPendingDiscountCount();
+    const interval = setInterval(fetchPendingDiscountCount, 30000);
+    const handleCountUpdated = () => fetchPendingDiscountCount();
+    window.addEventListener('discount-auth:count-updated', handleCountUpdated);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('discount-auth:count-updated', handleCountUpdated);
+    };
+  }, [canAuthorizeDiscount, fetchPendingDiscountCount]);
+
+  useEffect(() => {
+    if (!socketConnected || !canAuthorizeDiscount) return;
+    const unsubDiscountReq = onEvent('discount-auth-request', () => {
+      fetchPendingDiscountCount();
+    });
+    const unsubDiscountRes = onEvent('discount-auth-response', () => {
+      fetchPendingDiscountCount();
+    });
+    return () => {
+      if (typeof unsubDiscountReq === 'function') unsubDiscountReq();
+      if (typeof unsubDiscountRes === 'function') unsubDiscountRes();
+    };
+  }, [socketConnected, canAuthorizeDiscount, onEvent, fetchPendingDiscountCount]);
 
   useEffect(() => {
     fetchNotifCount();
@@ -425,6 +467,21 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
                 >
                   <span className="material-symbols-outlined">settings</span>
                   <span>Configuraciones</span>
+                </button>
+              )}
+
+              {canAuthorizeDiscount && (
+                <button 
+                  className={`drawer-nav-item ${location.pathname === '/autorizaciones' ? 'isActive' : ''}`} 
+                  onClick={() => { setIsMobileOpen(false); navigate('/autorizaciones'); }}
+                >
+                  <span className="material-symbols-outlined">verified_user</span>
+                  <span>Autorizaciones</span>
+                  {pendingDiscountCount > 0 && (
+                    <b className="lum-sideBadge">
+                      {pendingDiscountCount}
+                    </b>
+                  )}
                 </button>
               )}
             </nav>
@@ -1253,6 +1310,26 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
             text-align: left !important;
           }
 
+          .lum-sideBadge {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            min-width: 20px !important;
+            height: 20px !important;
+            padding: 0 6px !important;
+            border-radius: 999px !important;
+            background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+            color: #ffffff !important;
+            font-size: 11px !important;
+            font-weight: 900 !important;
+            font-style: normal !important;
+            line-height: 1 !important;
+            flex: 0 0 auto !important;
+            flex-shrink: 0 !important;
+            margin-left: auto !important;
+            box-shadow: 0 2px 5px rgba(217, 119, 6, 0.45) !important;
+          }
+
           /* ─── Exit/Close Button (minimalist, red on hover) ─── */
           .lum-sideItem.exit-btn {
             transition: all 0.15s ease;
@@ -1398,6 +1475,23 @@ export default function Sidebar({ events: propsEvents, reminders: propsReminders
           >
             <span className="material-symbols-outlined">settings</span>
             <span>Configuraciones</span>
+          </button>
+        )}
+
+        {canAuthorizeDiscount && (
+          <button 
+            className={`lum-sideItem ${location.pathname === '/autorizaciones' ? 'isActive' : ''}`} 
+            type="button"
+            onMouseEnter={() => import('../../../modules/autorizaciones/AutorizacionesModule')}
+            onClick={() => navigate('/autorizaciones')}
+          >
+            <span className="material-symbols-outlined">verified_user</span>
+            <span>Autorizaciones</span>
+            {pendingDiscountCount > 0 && (
+              <b className="lum-sideBadge">
+                {pendingDiscountCount}
+              </b>
+            )}
           </button>
         )}
       </nav>

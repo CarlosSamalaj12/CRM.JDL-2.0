@@ -10,6 +10,7 @@ import SafeRoute from './components/SafeRoute';
 import MaintenancePage from './components/MaintenancePage';
 import MaintenanceCountdownBanner from './components/MaintenanceCountdownBanner';
 import UpdateBanner from './components/UpdateBanner';
+import GlobalSocketHandler from './components/GlobalSocketHandler';
 import ProtectedRoute from './modules/informes/components/ProtectedRoute';
 import Kanban from './modules/informes/pages/Kanban';
 import ReportsLayout from './modules/informes/components/ReportsLayout';
@@ -34,6 +35,7 @@ const InformeView = lazy(() => import('./modules/informes/pages/InformeView'));
 const Configuracion = lazy(() => import('./modules/informes/pages/Configuracion'));
 const Dashboard = lazy(() => import('./modules/informes/pages/Dashboard'));
 const PublicChecklistPage = lazy(() => import('./modules/checklist/PublicChecklistPage'));
+const AutorizacionesModule = lazy(() => import('./modules/autorizaciones/AutorizacionesModule'));
 
 function getHomePath(user) {
   if (!user) return '/login';
@@ -218,6 +220,7 @@ function App() {
       <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
+          <GlobalSocketHandler />
           <SocketProvider>
             {isBlocked ? (
               <MaintenancePage onBypassSuccess={() => {
@@ -302,6 +305,7 @@ function App() {
                     <Route path="search" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><SearchModule /></SafeRoute></RoleRoute>} />
                     <Route path="posibles-ventas" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><PosiblesVentasModule /></SafeRoute></RoleRoute>} />
                     <Route path="habitaciones" element={<RoleRoute roles={['admin','vendedor','recepcionista']}><SafeRoute><HabitacionesModule /></SafeRoute></RoleRoute>} />
+                    <Route path="autorizaciones" element={<RoleRoute roles={['admin','vendedor','recepcionista','eventos','coordinador']}><SafeRoute><AutorizacionesModule /></SafeRoute></RoleRoute>} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/login" replace />} />

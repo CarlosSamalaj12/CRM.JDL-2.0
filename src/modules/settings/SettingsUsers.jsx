@@ -26,6 +26,8 @@ export default function SettingsUsers() {
   const [equipos, setEquipos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortKey, setSortKey] = useState('name'); // 'name' | 'email' | 'phone' | 'team' | 'role' | 'active'
+  const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
 
   const fetchUsersAndTeams = async () => {
     setLoading(true);
@@ -115,17 +117,80 @@ export default function SettingsUsers() {
   const avatarFor = (u) => u.avatarDataUrl ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || u.name || '?')}&background=0ea5e9&color=fff&size=80`;
 
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const renderSortIndicator = (key) => {
+    if (sortKey !== key) {
+      return (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+          <path d="M7 15l5 5 5-5M7 9l5-5 5 5" />
+        </svg>
+      );
+    }
+    return (
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="#0284c7"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{
+          transform: sortDir === 'desc' ? 'rotate(180deg)' : 'none',
+          transition: 'transform 0.15s ease'
+        }}
+      >
+        <polyline points="18 15 12 9 6 15" />
+      </svg>
+    );
+  };
+
   const safeEquipos = Array.isArray(equipos) ? equipos : [];
   const safeUsers = Array.isArray(users) ? users : [];
 
   const sortedUsers = [...safeUsers].sort((a, b) => {
-    const teamA = safeEquipos.find(eq => eq.id === a.teamId)?.nombre || 'Z_Sin equipo';
-    const teamB = safeEquipos.find(eq => eq.id === b.teamId)?.nombre || 'Z_Sin equipo';
-    const compTeam = teamA.localeCompare(teamB, 'es', { sensitivity: 'base' });
-    if (compTeam !== 0) return compTeam;
-    const nameA = a.fullName || a.name || '';
-    const nameB = b.fullName || b.name || '';
-    return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    let result = 0;
+    if (sortKey === 'name') {
+      const nameA = (a.fullName || a.name || '').trim();
+      const nameB = (b.fullName || b.name || '').trim();
+      result = nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    } else if (sortKey === 'email') {
+      const emailA = (a.email || '').trim();
+      const emailB = (b.email || '').trim();
+      result = emailA.localeCompare(emailB, 'es', { sensitivity: 'base' });
+    } else if (sortKey === 'phone') {
+      const phoneA = (a.phone || '').trim();
+      const phoneB = (b.phone || '').trim();
+      result = phoneA.localeCompare(phoneB, 'es', { sensitivity: 'base' });
+    } else if (sortKey === 'team') {
+      const teamA = safeEquipos.find(eq => eq.id === a.teamId)?.nombre || 'Z_Sin equipo';
+      const teamB = safeEquipos.find(eq => eq.id === b.teamId)?.nombre || 'Z_Sin equipo';
+      result = teamA.localeCompare(teamB, 'es', { sensitivity: 'base' });
+    } else if (sortKey === 'role') {
+      const roleA = ROLE_LABELS[a.role] || a.role || '';
+      const roleB = ROLE_LABELS[b.role] || b.role || '';
+      result = roleA.localeCompare(roleB, 'es', { sensitivity: 'base' });
+    } else if (sortKey === 'active') {
+      const actA = a.active !== false ? 1 : 0;
+      const actB = b.active !== false ? 1 : 0;
+      result = actB - actA;
+    }
+    // Desempate secundario por nombre alfabético
+    if (result === 0) {
+      const nameA = (a.fullName || a.name || '').trim();
+      const nameB = (b.fullName || b.name || '').trim();
+      result = nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    }
+    return sortDir === 'asc' ? result : -result;
   });
 
   const filteredUsers = sortedUsers.filter(u => {
@@ -165,13 +230,28 @@ export default function SettingsUsers() {
 
       {/* Buscador + Acción */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: '420px' }}>
+        <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: '420px', display: 'flex', alignItems: 'center' }}>
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#94a3b8"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ position: 'absolute', left: 12, pointerEvents: 'none' }}
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
           <input
             type="text"
             className="settings-search-bar-input"
-            placeholder="🔍 Buscar por nombre, correo, equipo o rol..."
-            value={searchTerm}
+            placeholder="Buscar por nombre, correo, equipo o rol..."
+            value={searchTerm ?? ''}
             onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ width: '100%', paddingLeft: '36px' }}
           />
         </div>
 
@@ -184,7 +264,11 @@ export default function SettingsUsers() {
           }}
           style={{ padding: '7px 16px', fontSize: '12.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
         >
-          <span>➕ Nuevo Usuario</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span>Nuevo Usuario</span>
         </button>
       </div>
 
@@ -200,12 +284,67 @@ export default function SettingsUsers() {
           <table className="usr-table">
             <thead>
               <tr>
-                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Usuario</th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Correo</th>
-                <th className="usr-hide-phone" style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Teléfono</th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Equipo</th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>Rol</th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'center' }}>Activo</th>
+                <th
+                  onClick={() => handleSort('name')}
+                  style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', cursor: 'pointer', userSelect: 'none' }}
+                  title="Ordenar por nombre alfabéticamente"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span>Usuario</span>
+                    {renderSortIndicator('name')}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('email')}
+                  style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', cursor: 'pointer', userSelect: 'none' }}
+                  title="Ordenar por correo"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span>Correo</span>
+                    {renderSortIndicator('email')}
+                  </div>
+                </th>
+                <th
+                  className="usr-hide-phone"
+                  onClick={() => handleSort('phone')}
+                  style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', cursor: 'pointer', userSelect: 'none' }}
+                  title="Ordenar por teléfono"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span>Teléfono</span>
+                    {renderSortIndicator('phone')}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('team')}
+                  style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', cursor: 'pointer', userSelect: 'none' }}
+                  title="Ordenar por equipo"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span>Equipo</span>
+                    {renderSortIndicator('team')}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('role')}
+                  style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', cursor: 'pointer', userSelect: 'none' }}
+                  title="Ordenar por rol"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span>Rol</span>
+                    {renderSortIndicator('role')}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('active')}
+                  style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'center', cursor: 'pointer', userSelect: 'none' }}
+                  title="Ordenar por estado activo"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <span>Activo</span>
+                    {renderSortIndicator('active')}
+                  </div>
+                </th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', borderBottom: '2px solid #cbd5e1', textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>

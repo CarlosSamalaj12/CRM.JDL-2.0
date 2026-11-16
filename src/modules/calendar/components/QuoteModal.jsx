@@ -36,6 +36,7 @@ import {
   AlertCircle,
   Eye,
   RotateCcw,
+  RefreshCw,
   FileDown,
   ChevronDown,
   ChevronUp,
@@ -143,6 +144,211 @@ const emptyServiceDraft = {
   description: '',
   active: true
 };
+
+function QuoteDiscountAuthControl({
+  quote,
+  setQuote,
+  discountAuth,
+  setDiscountAuth,
+  totals,
+  event,
+  curUser,
+  authLoading,
+  setAuthLoading,
+  isMobile = false
+}) {
+  const isAuthorizer = curUser?.canAuthorizeDiscount === true || curUser?.role === 'admin';
+  const hasDiscount = Number(quote.discountValue || 0) > 0;
+  if (!hasDiscount && !discountAuth) return null;
+  if (isAuthorizer && !discountAuth) return null;
+
+  const isPending = discountAuth?.estado === 'pendiente';
+  const isApproved = totals.isDiscountApproved;
+  const isRejected = discountAuth?.estado === 'rechazado';
+
+  const normDiscType = (t) => String(t || '').trim().toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT';
+  const quoteNormType = normDiscType(quote.discountType);
+  const pendingType = normDiscType(discountAuth?.tipoDescuento);
+  const pendingVal = Number(discountAuth?.valorDescuento || 0);
+  const isPendingModified = isPending && (
+    quoteNormType !== pendingType || Number(quote.discountValue || 0) !== pendingVal
+  );
+
+  const approvedVal = Number(discountAuth?.valorDescuento || 0);
+  const approvedType = normDiscType(discountAuth?.tipoDescuento);
+  const isApprovedExceeded = discountAuth?.estado === 'aprobado' && !isApproved && hasDiscount && (
+    quoteNormType !== approvedType || Number(quote.discountValue || 0) > approvedVal
+  );
+
+  const needsRequest = !isPending && !isApproved && (hasDiscount || isRejected);
+
+  const handleSolicitar = async (isUpdate = false) => {
+    setAuthLoading(true);
+    try {
+      const user = authService.getCurrentUser() || curUser;
+      const solicitanteId = user?.id || '';
+      if (!solicitanteId) {
+        toast.error('No se pudo identificar tu usuario. Por favor recarga la página o inicia sesión.');
+        return;
+      }
+      const eventoId = event?.id || event?.code || '';
+      if (!eventoId) { toast.error('ID de evento no disponible'); return; }
+      const proposedMonto = totals.rawDiscountAmount || totals.proposedDiscountAmount || 0;
+      await api.post('/api/discount-auth/solicitar', {
+        eventoId, cotizacionId: quote.code || null,
+        tipoDescuento: quote.discountType, valorDescuento: Number(quote.discountValue),
+        montoDescuento: proposedMonto, solicitanteId,
+        eventoNombre: event?.name || '', eventoCliente: quote.companyName || '',
+        eventoFecha: event?.date || quote.eventDate || '', eventoSalon: event?.salon || quote.venue || '',
+        eventoTotal: totals.total,
+      });
+      setDiscountAuth({
+        estado: 'pendiente',
+        tipoDescuento: quote.discountType,
+        valorDescuento: Number(quote.discountValue),
+        montoDescuento: proposedMonto,
+        editado: isUpdate
+      });
+      toast.success(isUpdate ? 'Solicitud actualizada y reenviada a administración' : 'Solicitud de autorización enviada');
+    } catch (err) {
+      toast.error('Error al solicitar: ' + (err.message || ''));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleCancelar = async () => {
+    if (!window.confirm('¿Deseas cancelar la solicitud de descuento pendiente con administración?')) return;
+    setAuthLoading(true);
+    try {
+      const user = authService.getCurrentUser() || curUser;
+      const solicitanteId = user?.id || '';
+      const eventoId = event?.id || event?.code || '';
+      if (!eventoId) return;
+      await api.post('/api/discount-auth/cancelar', { eventoId, solicitanteId });
+      setDiscountAuth(null);
+      setQuote(prev => ({ ...prev, discountValue: 0 }));
+      toast.success('Solicitud de descuento cancelada');
+    } catch (err) {
+      toast.error('Error al cancelar solicitud: ' + (err.message || ''));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: isMobile ? 6 : 8, paddingTop: isMobile ? 6 : 8, borderTop: '1px solid #e2e8f0' }}>
+      {isPendingModified ? (
+        <div>
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '7px 9px', marginBottom: 6 }}>
+            <div style={{ fontSize: 11, color: '#92400e', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <AlertTriangle size={13} strokeWidth={2.2} color="#d97706" />
+              <span>Monto de descuento modificado</span>
+            </div>
+            <div style={{ fontSize: 10.5, color: '#b45309', marginTop: 3 }}>
+              Solicitud actual: <strong>{pendingType === 'PERCENT' ? `${pendingVal}%` : `Q ${pendingVal.toLocaleString('es-GT', { minimumFractionDigits: 2 })}`}</strong>
+              {' → '}
+              Nuevo valor: <strong>{quote.discountType === 'PERCENT' ? `${quote.discountValue}%` : `Q ${Number(quote.discountValue || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`}</strong>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={authLoading}
+            onClick={() => handleSolicitar(true)}
+            style={{ width: '100%', padding: '7px 0', fontSize: 11, fontWeight: 700, border: '1px solid #0284c7', borderRadius: 6, background: '#f0f9ff', color: '#0369a1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 4 }}
+          >
+            <RefreshCw size={12} strokeWidth={2.2} />
+            <span>{authLoading ? 'Actualizando...' : 'Actualizar y Reenviar Solicitud'}</span>
+          </button>
+          <button
+            type="button"
+            disabled={authLoading}
+            onClick={handleCancelar}
+            style={{ width: '100%', padding: '4px 0', fontSize: 10.5, fontWeight: 600, border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            Cancelar solicitud de descuento
+          </button>
+        </div>
+      ) : isPending ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '5px 0', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 700 }}>
+            <Clock size={12} strokeWidth={2.2} />
+            <span>Autorización pendiente ({pendingType === 'PERCENT' ? `${pendingVal}%` : `Q ${pendingVal.toLocaleString('es-GT', { minimumFractionDigits: 2 })}`})</span>
+          </div>
+          <button
+            type="button"
+            disabled={authLoading}
+            onClick={handleCancelar}
+            style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: 10.5, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: '2px 0' }}
+          >
+            Cancelar solicitud pendiente
+          </button>
+        </div>
+      ) : isApprovedExceeded ? (
+        <div>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '7px 9px', marginBottom: 6 }}>
+            <div style={{ fontSize: 11, color: '#991b1b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <AlertTriangle size={13} strokeWidth={2.2} color="#dc2626" />
+              <span>Supera el descuento autorizado</span>
+            </div>
+            <div style={{ fontSize: 10.5, color: '#b91c1c', marginTop: 3 }}>
+              Autorizado: <strong>{approvedType === 'PERCENT' ? `${approvedVal}%` : `Q ${approvedVal.toLocaleString('es-GT', { minimumFractionDigits: 2 })}`}</strong>
+              {' · '}
+              Ingresado: <strong>{quote.discountType === 'PERCENT' ? `${quote.discountValue}%` : `Q ${Number(quote.discountValue || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`}</strong>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={authLoading}
+            onClick={() => handleSolicitar(true)}
+            style={{ width: '100%', padding: '7px 0', fontSize: 11, fontWeight: 700, border: '1px solid #f59e0b', borderRadius: 6, background: '#fffbeb', color: '#92400e', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+          >
+            <Lock size={12} strokeWidth={2.2} />
+            <span>{authLoading ? 'Enviando...' : 'Solicitar nueva autorización por incremento'}</span>
+          </button>
+        </div>
+      ) : isApproved ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '5px 0', borderRadius: 6, background: '#d1fae5', color: '#065f46', fontSize: 11, fontWeight: 700 }}>
+          <CheckCircle2 size={13} strokeWidth={2.2} />
+          <span>Descuento autorizado {discountAuth?.tipoDescuento === 'PERCENT' ? `(hasta ${approvedVal}%)` : `(hasta Q ${approvedVal.toLocaleString('es-GT', { minimumFractionDigits: 2 })})`}</span>
+        </div>
+      ) : isRejected && !needsRequest ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '5px 0', borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 700 }}>
+            <XCircle size={13} strokeWidth={2.2} />
+            <span>Descuento rechazado{discountAuth?.respuestaMotivo ? `: ${discountAuth.respuestaMotivo}` : ''}</span>
+          </div>
+          <button
+            type="button"
+            disabled={authLoading}
+            onClick={() => handleSolicitar(false)}
+            style={{ width: '100%', padding: '6px 0', fontSize: 11, fontWeight: 700, border: '1px solid #f59e0b', borderRadius: 6, background: '#fffbeb', color: '#92400e', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+          >
+            <Lock size={12} strokeWidth={2.2} />
+            <span>{authLoading ? 'Enviando...' : 'Re-solicitar con nuevo monto'}</span>
+          </button>
+        </div>
+      ) : needsRequest ? (
+        <button
+          type="button"
+          disabled={authLoading}
+          onClick={() => handleSolicitar(false)}
+          style={{ width: '100%', padding: '7px 0', fontSize: 11, fontWeight: 700, border: '1px solid #f59e0b', borderRadius: 6, background: '#fffbeb', color: '#92400e', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+        >
+          <Lock size={12} strokeWidth={2.2} />
+          <span>{authLoading ? 'Enviando...' : (isRejected ? 'Re-solicitar con nuevo monto' : 'Solicitar autorización')}</span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+const escapeHtml = (str) => String(str ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
 
 export default function QuoteModal({ event: eventProp, eventData, slots = [], onClose, onSave, openAdvancesOnMount, inlineMode }) {
   const [saving, setSaving] = useState(false);
@@ -389,7 +595,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
     eventDate: event?.quote?.eventDate || event?.date || '',
     endDate: event?.quote?.endDate || event?.endDate || event?.date || '',
     dueDate: event?.quote?.dueDate || '',
-    discountType: event?.quote?.discountType || 'AMOUNT',
+    discountType: String(event?.quote?.discountType || '').trim().toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT',
     discountValue: event?.quote?.discountValue || 0,
     tipType: event?.quote?.tipType || 'PERCENT',
     tipValue: event?.quote?.tipValue !== undefined && event?.quote?.tipValue !== null ? event.quote.tipValue : 0,
@@ -585,16 +791,50 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       } catch (_) {}
     })();
 
-    const unsub = socketService.on('discount-auth-response', (data) => {
-      if (data.eventoId === eventoId) {
-        setDiscountAuth(prev => prev ? { ...prev, estado: data.estado, respuestaMotivo: data.motivo, fechaRespuesta: new Date().toISOString() } : { estado: data.estado, respuestaMotivo: data.motivo });
+    const handleDiscountResponse = (data) => {
+      if (String(data.eventoId) === String(eventoId)) {
+        setDiscountAuth(prev => prev ? {
+          ...prev,
+          estado: data.estado,
+          tipoDescuento: data.tipoDescuento || prev.tipoDescuento,
+          valorDescuento: data.valorDescuento ?? prev.valorDescuento,
+          montoDescuento: data.montoDescuento ?? prev.montoDescuento,
+          respuestaMotivo: data.motivo,
+          fechaRespuesta: new Date().toISOString()
+        } : {
+          estado: data.estado,
+          tipoDescuento: data.tipoDescuento,
+          valorDescuento: data.valorDescuento,
+          montoDescuento: data.montoDescuento,
+          respuestaMotivo: data.motivo
+        });
         if (data.estado === 'aprobado') {
-          toast.success('✅ Descuento autorizado');
+          toast.success('Descuento autorizado');
         } else if (data.estado === 'rechazado') {
-          toast.error(`❌ Descuento rechazado${data.motivo ? ': ' + data.motivo : ''}`);
+          toast.error(`Descuento rechazado${data.motivo ? ': ' + data.motivo : ''}`);
         }
       }
-    });
+    };
+
+    const handleStatusUpdated = (e) => {
+      if (e.detail) {
+        if (e.detail.estado === 'cancelado') {
+          if (String(e.detail.eventoId) === String(eventoId)) setDiscountAuth(null);
+        } else {
+          handleDiscountResponse(e.detail);
+        }
+      }
+    };
+
+    const handleDiscountCanceled = (data) => {
+      if (String(data.eventoId) === String(eventoId)) {
+        setDiscountAuth(null);
+      }
+    };
+
+    const unsub = socketService.on('discount-auth-response', handleDiscountResponse);
+    const unsubCanceled = socketService.on('discount-auth-canceled', handleDiscountCanceled);
+    window.addEventListener('discount-auth:status-updated', handleStatusUpdated);
 
     const unsubState = socketService.on('state-updated', async () => {
       try {
@@ -621,6 +861,8 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
 
     return () => {
       unsub();
+      if (typeof unsubCanceled === 'function') unsubCanceled();
+      window.removeEventListener('discount-auth:status-updated', handleStatusUpdated);
       if (typeof unsubState === 'function') unsubState();
     };
   }, [event?.id, event?.code, eventData?.id, eventProp?.id]);
@@ -1105,10 +1347,28 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   };
 
   const totals = useMemo(() => {
+    const curUser = authService.getCurrentUser();
+    const canSelfAuthorize = curUser?.canAuthorizeDiscount === true || curUser?.role === 'admin';
+    const hasDiscountVal = Number(quote.discountValue || 0) > 0;
+
+    const quoteNormType = String(quote.discountType || '').trim().toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT';
+    const authNormType = String(discountAuth?.tipoDescuento || '').trim().toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT';
+
+    // Descuento autorizado si el usuario tiene permiso directo O si existe autorización aprobada en DB
+    const isDiscountApproved = canSelfAuthorize || (
+      discountAuth?.estado === 'aprobado' &&
+      quoteNormType === authNormType &&
+      Number(quote.discountValue || 0) <= Number(discountAuth?.valorDescuento ?? quote.discountValue)
+    );
+
     const subtotal = quote.items.reduce((sum, item) => sum + (Number(item.qty || 0) * Number(item.price || 0)), 0);
-    const discountAmount = quote.discountType === 'PERCENT'
-      ? Math.max(0, Math.min(subtotal, subtotal * Math.min(100, quote.discountValue) / 100))
-      : Math.max(0, Math.min(subtotal, quote.discountValue));
+    const rawDiscountAmount = quoteNormType === 'PERCENT'
+      ? Math.max(0, Math.min(subtotal, subtotal * Math.min(100, Number(quote.discountValue) || 0) / 100))
+      : Math.max(0, Math.min(subtotal, Number(quote.discountValue) || 0));
+
+    // Si NO está aprobado, el descuento efectivo en totales y documentos es 0 (precio regular)
+    const discountAmount = isDiscountApproved ? rawDiscountAmount : 0;
+    const proposedDiscountAmount = (!isDiscountApproved && hasDiscountVal) ? rawDiscountAmount : 0;
     const netSubtotal = Math.max(0, subtotal - discountAmount);
 
     const rawTipValue = Math.max(0, Number(quote.tipValue || 0));
@@ -1118,9 +1378,25 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       : Math.max(0, Math.round(tipValue * 100) / 100);
 
     const total = Math.max(0, netSubtotal + tipAmount);
+
+    let discountPendingNotice = '';
+    if (!isDiscountApproved && hasDiscountVal) {
+      if (discountAuth?.estado === 'pendiente') {
+        discountPendingNotice = 'Descuento comercial en proceso de revisión administrativa. Montos calculados a tarifa estándar.';
+      } else if (discountAuth?.estado === 'rechazado') {
+        discountPendingNotice = `Descuento comercial rechazado por administración${discountAuth.respuestaMotivo ? `: ${discountAuth.respuestaMotivo}` : ''}. Montos calculados a tarifa estándar.`;
+      } else {
+        discountPendingNotice = 'Descuento comercial pendiente de autorización administrativa. Montos calculados a tarifa estándar.';
+      }
+    }
+
     return {
       subtotal,
       discountAmount,
+      rawDiscountAmount,
+      proposedDiscountAmount,
+      isDiscountApproved,
+      discountPendingNotice,
       netSubtotal,
       tipType: quote.tipType || 'PERCENT',
       tipValue,
@@ -1128,7 +1404,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       total,
       companyTotal: netSubtotal
     };
-  }, [quote.items, quote.discountType, quote.discountValue, quote.tipType, quote.tipValue]);
+  }, [quote.items, quote.discountType, quote.discountValue, quote.tipType, quote.tipValue, discountAuth]);
   const menuMontajeSummary = useMemo(() => {
     const entries = Array.isArray(quote.menuMontajeEntries)
       ? quote.menuMontajeEntries.filter(entry => String(entry?.date || '').trim() || String(entry?.salon || '').trim())
@@ -1246,7 +1522,10 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
       ...sourceQuote,
       items: cleanItems,
       subtotal: totalsObj?.subtotal ?? sourceQuote.subtotal,
-      discountAmount: totalsObj?.discountAmount ?? sourceQuote.discountAmount,
+      discountAmount: totalsObj?.discountAmount ?? 0,
+      isDiscountApproved: totalsObj?.isDiscountApproved ?? false,
+      discountPendingNotice: totalsObj?.discountPendingNotice || '',
+      proposedDiscountAmount: totalsObj?.proposedDiscountAmount || 0,
       tipType: sourceQuote.tipType || 'PERCENT',
       tipValue: sourceQuote.tipValue || 0,
       tipAmount: totalsObj?.tipAmount ?? sourceQuote.tipAmount ?? 0,
@@ -1685,6 +1964,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         version: newVersionNum,
         subtotal: totals.subtotal,
         discountAmount: totals.discountAmount,
+        isDiscountApproved: totals.isDiscountApproved,
+        discountPendingNotice: totals.discountPendingNotice,
+        proposedDiscountAmount: totals.proposedDiscountAmount,
         tipType: quote.tipType,
         tipValue: quote.tipValue,
         tipAmount: totals.tipAmount,
@@ -1710,6 +1992,9 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         version: newVersionNum,
         subtotal: totals.subtotal,
         discountAmount: totals.discountAmount,
+        isDiscountApproved: totals.isDiscountApproved,
+        discountPendingNotice: totals.discountPendingNotice,
+        proposedDiscountAmount: totals.proposedDiscountAmount,
         tipType: quote.tipType,
         tipValue: quote.tipValue,
         tipAmount: totals.tipAmount,
@@ -1983,8 +2268,99 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
   };
 
   const handleApplyTemplate = () => {
+    if (!quote.templateId) {
+      localSwal({
+        icon: null,
+        title: '',
+        html: `
+          <div class="qtemplate-modal-wrapper is-warning">
+            <div class="qtemplate-accent-bar is-amber"></div>
+            <button type="button" class="qtemplate-close-btn" aria-label="Cerrar modal" onclick="Swal.close()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div class="qtemplate-content-body">
+              <div class="qtemplate-header">
+                <div class="qtemplate-icon-wrapper">
+                  <div class="qtemplate-icon-box is-amber">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                  </div>
+                </div>
+                <div class="qtemplate-header-text">
+                  <div class="qtemplate-status-pill is-amber">Atención requerida</div>
+                  <h3 class="qtemplate-title">Selecciona una plantilla</h3>
+                </div>
+              </div>
+              <p class="qtemplate-desc">
+                Por favor, elige una plantilla rápida del menú desplegable antes de hacer clic en <strong>Aplicar plantilla</strong>.
+              </p>
+              <div class="qtemplate-actions">
+                <button type="button" class="qtemplate-btn-confirm is-amber" onclick="Swal.close()">
+                  <span>Entendido</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `,
+        showConfirmButton: false,
+        customClass: { popup: 'qtemplate-applied-popup' }
+      });
+      return;
+    }
+
     const template = quickTemplates.find(t => String(t.id) === quote.templateId);
-    if (!template?.items?.length) { localSwal('Info', 'Plantilla sin items', 'info'); return; }
+    if (!template?.items?.length) {
+      localSwal({
+        icon: null,
+        title: '',
+        html: `
+          <div class="qtemplate-modal-wrapper is-warning">
+            <div class="qtemplate-accent-bar is-amber"></div>
+            <button type="button" class="qtemplate-close-btn" aria-label="Cerrar modal" onclick="Swal.close()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div class="qtemplate-content-body">
+              <div class="qtemplate-header">
+                <div class="qtemplate-icon-wrapper">
+                  <div class="qtemplate-icon-box is-amber">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                  </div>
+                </div>
+                <div class="qtemplate-header-text">
+                  <div class="qtemplate-status-pill is-amber">Plantilla Vacía</div>
+                  <h3 class="qtemplate-title">Sin servicios asignados</h3>
+                </div>
+              </div>
+              <p class="qtemplate-desc">
+                La plantilla seleccionada (<strong>${escapeHtml(template?.name || 'Plantilla')}</strong>) no contiene servicios configurados para cargar al carrito.
+              </p>
+              <div class="qtemplate-actions">
+                <button type="button" class="qtemplate-btn-confirm is-amber" onclick="Swal.close()">
+                  <span>Entendido</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `,
+        showConfirmButton: false,
+        customClass: { popup: 'qtemplate-applied-popup' }
+      });
+      return;
+    }
+
     const templateItems = template.items.map(item => {
       const svcId = String(item.serviceId || item.id || '').trim();
       const svcName = (item.name || '').trim().toLowerCase();
@@ -2001,8 +2377,152 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
         serviceDate: item.serviceDate || availableServiceDates[0]
       };
     });
+
     setQuote(prev => ({ ...prev, items: [...prev.items, ...templateItems] }));
-    localSwal('Éxito', `Plantilla "${template.name}" aplicada`, 'success');
+
+    const templateTotal = templateItems.reduce((acc, it) => acc + ((Number(it.qty) || 1) * (Number(it.price) || 0)), 0);
+
+    const itemsPreviewHtml = templateItems.length > 0 ? `
+      <div class="qtemplate-preview-container">
+        <div class="qtemplate-preview-header">
+          <span>Servicios agregados (${templateItems.length})</span>
+          <span>Cant. / Tarifa</span>
+        </div>
+        <div class="qtemplate-preview-list">
+          ${templateItems.slice(0, 4).map(it => `
+            <div class="qtemplate-preview-row">
+              <div class="qtemplate-preview-item-info">
+                <span class="qtemplate-preview-dot"></span>
+                <span class="qtemplate-preview-name" title="${escapeHtml(it.name)}">${escapeHtml(it.name)}</span>
+              </div>
+              <div class="qtemplate-preview-meta">
+                <span class="qtemplate-preview-qty">${it.qty}x</span>
+                <span class="qtemplate-preview-price">Q ${(Number(it.price) || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          `).join('')}
+          ${templateItems.length > 4 ? `
+            <div class="qtemplate-preview-more">+${templateItems.length - 4} servicios adicionales incluidos</div>
+          ` : ''}
+        </div>
+      </div>
+    ` : '';
+
+    localSwal({
+      icon: null,
+      title: '',
+      html: `
+        <div class="qtemplate-modal-wrapper">
+          <div class="qtemplate-accent-bar"></div>
+          <button type="button" class="qtemplate-close-btn" aria-label="Cerrar modal" onclick="Swal.close()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          <div class="qtemplate-content-body">
+            <div class="qtemplate-header">
+              <div class="qtemplate-icon-wrapper">
+                <div class="qtemplate-icon-box">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
+                    <path d="M19 19v3"/>
+                    <path d="M20.5 20.5h-3"/>
+                    <path d="M5 2v3"/>
+                    <path d="M3.5 3.5h3"/>
+                  </svg>
+                </div>
+                <div class="qtemplate-icon-badge">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="qtemplate-header-text">
+                <div class="qtemplate-status-pill">
+                  <span class="qtemplate-status-dot"></span>
+                  Carrito Operativo Actualizado
+                </div>
+                <h3 class="qtemplate-title">Plantilla aplicada con éxito</h3>
+              </div>
+            </div>
+
+            <div class="qtemplate-summary-card">
+              <div class="qtemplate-summary-header">
+                <span class="qtemplate-summary-label">Detalles de importación</span>
+                <span class="qtemplate-summary-sub">Cotización activa</span>
+              </div>
+              <div class="qtemplate-chips-row">
+                <div class="qtemplate-chip is-template">
+                  <span class="qtemplate-chip-muted">Plantilla:</span>
+                  <span class="qtemplate-chip-val">
+                    <span class="qtemplate-chip-indicator"></span>
+                    ${escapeHtml(template.name || 'Plantilla')}
+                  </span>
+                </div>
+                <div class="qtemplate-chip is-count">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                  </svg>
+                  <span>${templateItems.length} servicios cargados</span>
+                </div>
+                <span class="qtemplate-badge-ready">Listo</span>
+              </div>
+              ${itemsPreviewHtml}
+            </div>
+
+            <p class="qtemplate-desc">
+              Los servicios y tarifas de la plantilla han sido agregados correctamente al carrito operativo de la cotización.
+            </p>
+
+            <div class="qtemplate-sync-footer">
+              <span class="qtemplate-sync-text">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                Tarifas y subtotales sincronizados
+              </span>
+              ${templateTotal > 0 ? `
+                <span class="qtemplate-sync-total">+ Q ${templateTotal.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              ` : ''}
+            </div>
+
+            <div class="qtemplate-actions">
+              <button type="button" class="qtemplate-btn-confirm" onclick="Swal.close()">
+                <span>Continuar cotizando</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                  <polyline points="12 5 19 12 12 19"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="qtemplate-timer-wrap">
+              <div class="qtemplate-timer-info">
+                <span class="qtemplate-timer-label">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  Cierre automático
+                </span>
+                <span class="qtemplate-timer-sec">4s</span>
+              </div>
+              <div class="qtemplate-timer-track">
+                <div class="qtemplate-timer-bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      showConfirmButton: false,
+      timer: 4000,
+      timerProgressBar: false,
+      customClass: { popup: 'qtemplate-applied-popup' }
+    });
   };
 
   const handleOpenMenuMontaje = () => {
@@ -5962,7 +6482,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <select
                           className="quote-mobile-select-date"
-                          value={quote.discountType}
+                          value={String(quote.discountType || '').trim().toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT'}
                           onChange={e => setQuote(p => ({ ...p, discountType: e.target.value }))}
                         >
                           <option value="AMOUNT">Monto Fijo ({quote.currency === 'USD' ? '$' : 'Q'})</option>
@@ -5984,6 +6504,29 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                           Descuento aplicado: −{moneyGT(totals.discountAmount, quote.currency)}
                         </div>
                       )}
+                      {totals.proposedDiscountAmount > 0 && !totals.isDiscountApproved && (
+                        <div style={{ fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fef3c7', padding: '6px 10px', borderRadius: 6, lineHeight: '1.4' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                            <span>Descuento propuesto:</span>
+                            <span>−{moneyGT(totals.proposedDiscountAmount, quote.currency)}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: '#92400e', marginTop: 2 }}>
+                            {totals.discountPendingNotice}
+                          </div>
+                        </div>
+                      )}
+                      <QuoteDiscountAuthControl
+                        quote={quote}
+                        setQuote={setQuote}
+                        discountAuth={discountAuth}
+                        setDiscountAuth={setDiscountAuth}
+                        totals={totals}
+                        event={event}
+                        curUser={authService.getCurrentUser()}
+                        authLoading={authLoading}
+                        setAuthLoading={setAuthLoading}
+                        isMobile={true}
+                      />
                     </div>
 
                     {/* Tarjeta de Propinas */}
@@ -6059,6 +6602,17 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                         <div className="quote-mobile-summary-row" style={{ color: '#dc2626' }}>
                           <span>Descuento aplicado:</span>
                           <strong>−{moneyGT(totals.discountAmount, quote.currency)}</strong>
+                        </div>
+                      )}
+                      {totals.proposedDiscountAmount > 0 && !totals.isDiscountApproved && (
+                        <div className="quote-mobile-summary-row" style={{ color: '#d97706', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: '#fffbeb', padding: '6px 8px', borderRadius: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontWeight: 700 }}>
+                            <span>Descuento propuesto:</span>
+                            <span>−{moneyGT(totals.proposedDiscountAmount, quote.currency)}</span>
+                          </div>
+                          <span style={{ fontSize: 10, color: '#92400e', fontWeight: 500 }}>
+                            {totals.discountPendingNotice}
+                          </span>
                         </div>
                       )}
                       {totals.tipAmount > 0 && (
@@ -7705,81 +8259,28 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {[
                     { label: 'Subtotal', val: totals.subtotal },
-                    { label: 'Descuento', val: totals.discountAmount },
+                    ...(totals.discountAmount > 0 ? [{ label: 'Descuento', val: totals.discountAmount }] : []),
+                    ...(totals.proposedDiscountAmount > 0 && !totals.isDiscountApproved ? [{ label: 'Desc. propuesto (pend.)', val: totals.proposedDiscountAmount }] : []),
                   ].map(r => (
-                    <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b' }}>
+                    <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: r.label.includes('propuesto') ? '#b45309' : '#64748b' }}>
                       <span>{r.label}</span><strong>{moneyGT(r.val, quote.currency)}</strong>
                     </div>
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 900, color: '#0f172a', paddingTop: 4, borderTop: '1px solid #e2e8f0', marginTop: 2 }}>
                     <span>Total</span><strong>{moneyGT(totals.total, quote.currency)}</strong>
                   </div>
-                  {(() => {
-                    const curUser = authService.getCurrentUser();
-                    const isAuthorizer = curUser?.canAuthorizeDiscount === true;
-                    const hasDiscount = Number(quote.discountValue) > 0;
-                    if (!hasDiscount || isAuthorizer) return null;
-                    const isPending = discountAuth?.estado === 'pendiente';
-                    const isApproved = discountAuth?.estado === 'aprobado';
-                    const isRejected = discountAuth?.estado === 'rechazado';
-                    return (
-                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
-                        {!discountAuth && (
-                          <button
-                            type="button"
-                            disabled={authLoading}
-                            onClick={async () => {
-                              setAuthLoading(true);
-                              try {
-                                const user = authService.getCurrentUser() || curUser;
-                                const solicitanteId = user?.id || '';
-                                if (!solicitanteId) {
-                                  toast.error('No se pudo identificar tu usuario. Por favor recarga la página o inicia sesión.');
-                                  return;
-                                }
-                                const eventoId = event?.id || event?.code || '';
-                                if (!eventoId) { toast.error('ID de evento no disponible'); return; }
-                                await api.post('/api/discount-auth/solicitar', {
-                                  eventoId, cotizacionId: quote.code || null,
-                                  tipoDescuento: quote.discountType, valorDescuento: Number(quote.discountValue),
-                                  montoDescuento: totals.discountAmount, solicitanteId,
-                                  eventoNombre: event?.name || '', eventoCliente: quote.companyName || '',
-                                  eventoFecha: event?.date || quote.eventDate || '', eventoSalon: event?.salon || quote.venue || '',
-                                  eventoTotal: totals.total,
-                                });
-                                setDiscountAuth({ estado: 'pendiente' });
-                                toast.success('Solicitud de autorización enviada');
-                              } catch (err) {
-                                toast.error('Error al solicitar autorización: ' + (err.message || ''));
-                              } finally { setAuthLoading(false); }
-                            }}
-                            style={{ width: '100%', padding: '6px 0', fontSize: 11, fontWeight: 700, border: '1px solid #f59e0b', borderRadius: 6, background: '#fffbeb', color: '#92400e', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
-                          >
-                            <Lock size={12} strokeWidth={2.2} />
-                            <span>{authLoading ? 'Enviando...' : 'Solicitar autorización'}</span>
-                          </button>
-                        )}
-                        {isPending && (
-                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '5px 0', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 700 }}>
-                            <Clock size={12} strokeWidth={2.2} />
-                            <span>Autorización pendiente</span>
-                          </span>
-                        )}
-                        {isApproved && (
-                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '5px 0', borderRadius: 6, background: '#d1fae5', color: '#065f46', fontSize: 11, fontWeight: 700 }}>
-                            <CheckCircle2 size={13} strokeWidth={2.2} />
-                            <span>Descuento autorizado</span>
-                          </span>
-                        )}
-                        {isRejected && (
-                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '5px 0', borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 700 }} title={discountAuth.respuestaMotivo || ''}>
-                            <XCircle size={13} strokeWidth={2.2} />
-                            <span>Descuento rechazado{discountAuth.respuestaMotivo ? `: ${discountAuth.respuestaMotivo}` : ''}</span>
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <QuoteDiscountAuthControl
+                    quote={quote}
+                    setQuote={setQuote}
+                    discountAuth={discountAuth}
+                    setDiscountAuth={setDiscountAuth}
+                    totals={totals}
+                    event={event}
+                    curUser={authService.getCurrentUser()}
+                    authLoading={authLoading}
+                    setAuthLoading={setAuthLoading}
+                    isMobile={false}
+                  />
                     </div>
                   </div>
                 </div>
@@ -8094,7 +8595,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                       <div>
                         <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4 }}>Tipo Descuento</label>
-                        <select style={{ ...fieldSelect, width: 130, height: 38 }} value={quote.discountType} onChange={e => setQuote(p => ({ ...p, discountType: e.target.value }))}>
+                        <select style={{ ...fieldSelect, width: 130, height: 38 }} value={String(quote.discountType || '').trim().toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT'} onChange={e => setQuote(p => ({ ...p, discountType: e.target.value }))}>
                           <option value="AMOUNT">Monto fijo ({quote.currency === 'USD' ? '$' : 'Q'})</option>
                           <option value="PERCENT">Porcentaje (%)</option>
                         </select>
@@ -8183,6 +8684,12 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                     {totals.discountAmount > 0 && (
                       <div style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
                         Descuento aplicado: <strong style={{ color: '#dc2626', marginLeft: 6 }}>- {moneyGT(totals.discountAmount, quote.currency)}</strong>
+                      </div>
+                    )}
+                    {totals.proposedDiscountAmount > 0 && !totals.isDiscountApproved && (
+                      <div style={{ fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fef3c7', padding: '4px 10px', borderRadius: 6, maxWidth: 360, textAlign: 'right', lineHeight: '1.3' }}>
+                        <div>Descuento propuesto: <strong style={{ color: '#d97706' }}>- {moneyGT(totals.proposedDiscountAmount, quote.currency)}</strong></div>
+                        <div style={{ fontSize: 10, color: '#92400e', marginTop: 2 }}>{totals.discountPendingNotice}</div>
                       </div>
                     )}
                     {totals.tipAmount > 0 && (

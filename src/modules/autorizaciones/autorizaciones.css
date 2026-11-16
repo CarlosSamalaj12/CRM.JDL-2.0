@@ -1,0 +1,910 @@
+/* ==========================================================================
+   MÓDULO DE AUTORIZACIONES DE DESCUENTO - ESTILOS
+   Alineado con el sistema de diseño Stitch / Bento y reglas de AGENTS.md
+   ========================================================================== */
+
+/* 1. BLINDAJE DE CONTROLES E INPUTS CONTRA GRADIENTES GLOBALES (CONTAINER + MODALES PORTAL) */
+html body:not(.informes-theme) .autorizaciones-container input[type="text"],
+html body:not(.informes-theme) .autorizaciones-container input,
+html body:not(.informes-theme) .autorizaciones-container select,
+html body:not(.informes-theme) .autorizaciones-container textarea,
+html body:not(.informes-theme) .autorizaciones-modal-overlay input,
+html body:not(.informes-theme) .autorizaciones-modal-overlay select,
+html body:not(.informes-theme) .autorizaciones-modal-overlay textarea,
+html body:not(.informes-theme) textarea.autorizaciones-modal-textarea,
+html body .autorizaciones-modal-textarea {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1 !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-container input::placeholder,
+html body:not(.informes-theme) .autorizaciones-container textarea::placeholder,
+html body:not(.informes-theme) .autorizaciones-modal-overlay textarea::placeholder,
+html body:not(.informes-theme) textarea.autorizaciones-modal-textarea::placeholder,
+html body .autorizaciones-modal-textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-container input:focus,
+html body:not(.informes-theme) .autorizaciones-container select:focus,
+html body:not(.informes-theme) .autorizaciones-container textarea:focus,
+html body:not(.informes-theme) .autorizaciones-modal-overlay textarea:focus,
+html body:not(.informes-theme) textarea.autorizaciones-modal-textarea:focus,
+html body .autorizaciones-modal-textarea:focus {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+  outline: none !important;
+  -webkit-text-fill-color: #0f172a !important;
+  color: #0f172a !important;
+}
+
+/* 2. CONTENEDOR PRINCIPAL */
+body:not(.informes-theme) .autorizaciones-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  padding: 24px 32px;
+  background-color: #f8fafc;
+  overflow-y: auto;
+  box-sizing: border-box;
+  font-family: inherit;
+  color: #0f172a;
+}
+
+/* 3. CABECERA EJECUTIVA */
+body:not(.informes-theme) .autorizaciones-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+body:not(.informes-theme) .autorizaciones-title-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+body:not(.informes-theme) .autorizaciones-icon-badge {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.25);
+  flex-shrink: 0;
+}
+
+body:not(.informes-theme) .autorizaciones-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+body:not(.informes-theme) .autorizaciones-subtitle {
+  margin: 3px 0 0 0;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+body:not(.informes-theme) .autorizaciones-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+body:not(.informes-theme) .autorizaciones-btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+body:not(.informes-theme) .autorizaciones-btn-refresh:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+body:not(.informes-theme) .autorizaciones-btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 4. PESTAÑAS SEGMENTADAS (STITCH PILL TABS) */
+body:not(.informes-theme) .autorizaciones-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+  margin-bottom: 22px;
+  border: 1px solid #e2e8f0;
+  width: fit-content;
+}
+
+body:not(.informes-theme) .autorizaciones-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body:not(.informes-theme) .autorizaciones-tab-btn:hover {
+  color: #1e293b;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+body:not(.informes-theme) .autorizaciones-tab-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+body:not(.informes-theme) .autorizaciones-counter-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  background: #e2e8f0;
+  color: #475569;
+  transition: all 0.15s ease;
+}
+
+body:not(.informes-theme) .autorizaciones-tab-btn.active .autorizaciones-counter-badge {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+body:not(.informes-theme) .autorizaciones-tab-btn .autorizaciones-counter-badge.amber {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+}
+
+/* 5. CARDS BENTO DE SOLICITUDES PENDIENTES */
+body:not(.informes-theme) .autorizaciones-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  gap: 18px;
+}
+
+body:not(.informes-theme) .autorizaciones-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+body:not(.informes-theme) .autorizaciones-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+body:not(.informes-theme) .autorizaciones-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+body:not(.informes-theme) .autorizaciones-event-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+}
+
+body:not(.informes-theme) .autorizaciones-client-name {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+  margin: 2px 0 0 0;
+}
+
+body:not(.informes-theme) .autorizaciones-card-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #f1f5f9;
+}
+
+body:not(.informes-theme) .autorizaciones-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+body:not(.informes-theme) .autorizaciones-meta-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.03em;
+}
+
+body:not(.informes-theme) .autorizaciones-meta-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* CAJA DESTACADA DE DESCUENTO */
+body:not(.informes-theme) .autorizaciones-discount-banner {
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+body:not(.informes-theme) .autorizaciones-badge-edited {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+body:not(.informes-theme) .autorizaciones-discount-box {
+  display: flex;
+  flex-direction: column;
+}
+
+body:not(.informes-theme) .autorizaciones-discount-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #92400e;
+  text-transform: uppercase;
+}
+
+body:not(.informes-theme) .autorizaciones-discount-amount {
+  font-size: 18px;
+  font-weight: 900;
+  color: #b45309;
+}
+
+body:not(.informes-theme) .autorizaciones-discount-total {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+}
+
+body:not(.informes-theme) .autorizaciones-total-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+body:not(.informes-theme) .autorizaciones-total-amount {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* BOTONES DE DECISIÓN */
+body:not(.informes-theme) .autorizaciones-card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+body:not(.informes-theme) .autorizaciones-btn-approve {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
+}
+
+body:not(.informes-theme) .autorizaciones-btn-approve:hover:not(:disabled) {
+  background: #047857;
+  transform: translateY(-1px);
+}
+
+body:not(.informes-theme) .autorizaciones-btn-reject {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #ffffff;
+  color: #dc2626;
+  border: 1.5px solid #fca5a5;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+body:not(.informes-theme) .autorizaciones-btn-reject:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #dc2626;
+  transform: translateY(-1px);
+}
+
+/* 6. TABLA DE HISTORIAL Y BARRA DE FILTROS */
+body:not(.informes-theme) .autorizaciones-history-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+body:not(.informes-theme) .autorizaciones-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: #ffffff;
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+body:not(.informes-theme) .autorizaciones-search-wrapper {
+  position: relative;
+  flex: 1;
+  max-width: 360px;
+  display: flex;
+  align-items: center;
+}
+
+body:not(.informes-theme) .autorizaciones-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #94a3b8;
+}
+
+body:not(.informes-theme) .autorizaciones-search-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 14px 0 38px !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  outline: none;
+  box-sizing: border-box;
+}
+
+body:not(.informes-theme) .autorizaciones-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+body:not(.informes-theme) .autorizaciones-filter-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #475569;
+}
+
+body:not(.informes-theme) .autorizaciones-filter-select {
+  height: 38px;
+  padding: 0 14px !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  outline: none;
+}
+
+body:not(.informes-theme) .autorizaciones-table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+body:not(.informes-theme) .autorizaciones-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  text-align: left;
+}
+
+body:not(.informes-theme) .autorizaciones-table th {
+  background: #f8fafc;
+  padding: 13px 18px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #475569;
+  letter-spacing: 0.05em;
+  border-bottom: 1.5px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+body:not(.informes-theme) .autorizaciones-table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  color: #1e293b;
+}
+
+body:not(.informes-theme) .autorizaciones-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+body:not(.informes-theme) .autorizaciones-table tr:hover td {
+  background: #f8fafc;
+}
+
+body:not(.informes-theme) .autorizaciones-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+body:not(.informes-theme) .autorizaciones-status-pill.approved {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+body:not(.informes-theme) .autorizaciones-status-pill.rejected {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+/* 7. CRÍTICO: OCULTAR TARJETAS MÓVILES EN PANTALLAS GRANDES */
+body:not(.informes-theme) .autorizaciones-mobile-history-list,
+body:not(.informes-theme) .autorizaciones-mobile-history-card {
+  display: none !important;
+}
+
+/* 8. MODAL DE CONFIRMACIÓN O RECHAZO (PORTAL A DOCUMENT.BODY) */
+.autorizaciones-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  padding: 16px;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-content {
+  background: #ffffff !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.05) !important;
+  width: 100%;
+  max-width: 490px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: autorizacionesModalPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid #e2e8f0;
+}
+
+@keyframes autorizacionesModalPop {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-header {
+  padding: 16px 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  background: #ffffff !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-header-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-icon-badge {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-icon-badge.approve {
+  background: #ecfdf5 !important;
+  border: 1px solid #d1fae5 !important;
+  color: #059669 !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-icon-badge.reject {
+  background: #fef2f2 !important;
+  border: 1px solid #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-title {
+  margin: 0 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  line-height: 1.2 !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-subtitle {
+  margin: 2px 0 0 !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  color: #64748b !important;
+  line-height: 1.2 !important;
+}
+
+/* Shielded Close Button from global button distortion */
+html body:not(.informes-theme) .autorizaciones-modal-close {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 8px !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  box-shadow: none !important;
+  line-height: 1 !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-close:hover:not(:disabled) {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+  border-color: #fca5a5 !important;
+  transform: rotate(90deg) !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-close:active:not(:disabled) {
+  transform: rotate(90deg) scale(0.92) !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-close svg {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  stroke: currentColor !important;
+  stroke-width: 2.5px !important;
+  display: block !important;
+  pointer-events: none !important;
+}
+
+html body:not(.informes-theme) .autorizaciones-modal-close svg path {
+  stroke: currentColor !important;
+  stroke-width: 2.5px !important;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-body {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #ffffff;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-summary {
+  background: #f8fafc;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-summary-row {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #334155;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-summary-label {
+  font-weight: 700;
+  color: #64748b;
+  width: 85px;
+  flex-shrink: 0;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-summary-value {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-discount-pill {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed #cbd5e1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #334155;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-textarea {
+  width: 100% !important;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  padding: 12px 14px !important;
+  font-size: 13.5px !important;
+  color: #0f172a !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  font-family: inherit !important;
+  box-sizing: border-box !important;
+  resize: vertical !important;
+  min-height: 95px !important;
+  outline: none !important;
+  line-height: 1.5 !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-textarea:focus {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-footer {
+  padding: 16px 22px;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-btn-cancel {
+  padding: 9px 18px !important;
+  border-radius: 9px !important;
+  border: 1.5px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #475569 !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-btn-cancel:hover:not(:disabled) {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-btn-confirm {
+  padding: 9px 20px !important;
+  border-radius: 9px !important;
+  border: none !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  color: #ffffff !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-btn-confirm.approve {
+  background: #059669 !important;
+  background-image: none !important;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-btn-confirm.approve:hover:not(:disabled) {
+  background: #047857 !important;
+  transform: translateY(-1px);
+}
+
+body:not(.informes-theme) .autorizaciones-modal-btn-confirm.reject {
+  background: #dc2626 !important;
+  background-image: none !important;
+}
+
+body:not(.informes-theme) .autorizaciones-modal-btn-confirm.reject:hover:not(:disabled) {
+  background: #b91c1c !important;
+  transform: translateY(-1px);
+}
+
+body:not(.informes-theme) .autorizaciones-modal-btn-confirm:disabled,
+body:not(.informes-theme) .autorizaciones-modal-btn-cancel:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* 9. ESTADO VACÍO (EMPTY STATE) */
+body:not(.informes-theme) .autorizaciones-empty-box {
+  background: #ffffff;
+  border: 2px dashed #e2e8f0;
+  border-radius: 14px;
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #64748b;
+}
+
+body:not(.informes-theme) .autorizaciones-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+body:not(.informes-theme) .autorizaciones-empty-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+body:not(.informes-theme) .autorizaciones-empty-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  max-width: 380px;
+}
+
+/* 10. RESPONSIVE MOBILE (<= 768px) */
+@media (max-width: 768px) {
+  body:not(.informes-theme) .autorizaciones-container {
+    padding: 16px 14px;
+  }
+  body:not(.informes-theme) .autorizaciones-grid {
+    grid-template-columns: 1fr;
+  }
+  body:not(.informes-theme) .autorizaciones-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  body:not(.informes-theme) .autorizaciones-search-wrapper {
+    max-width: 100%;
+  }
+  body:not(.informes-theme) .autorizaciones-filter-group {
+    justify-content: space-between;
+  }
+  body:not(.informes-theme) .autorizaciones-table {
+    display: none !important;
+  }
+  body:not(.informes-theme) .autorizaciones-mobile-history-list {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+  }
+  body:not(.informes-theme) .autorizaciones-mobile-history-card {
+    display: flex !important;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { loadState as loadCrmState, invalidateStateCache } from '../../services/stateService';
 import { getEquipos, updateUserEquipo, updateUser, createUser, deleteUser, toggleUserActive, api } from '../../services/api.js';
 import toast from 'react-hot-toast';
@@ -24,7 +25,7 @@ export default function UserModal({ onClose }) {
   const [loading, setLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [equipos, setEquipos] = useState([]);
-  
+
   // Form states
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -37,8 +38,6 @@ export default function UserModal({ onClose }) {
   const [canAuthorizeDiscount, setCanAuthorizeDiscount] = useState(false);
   const [canUseChecklist, setCanUseChecklist] = useState(false);
 
-  const userModalRef = useRef(null);
-  const backdropRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
 
   const formatNumberWithCommas = (value) => {
@@ -51,7 +50,7 @@ export default function UserModal({ onClose }) {
     }
     return parts.join('.');
   };
-  
+
   // Tier inputs
   const [tierName, setTierName] = useState('');
   const [tierAmount, setTierAmount] = useState('');
@@ -62,7 +61,6 @@ export default function UserModal({ onClose }) {
   const [avatarDataUrl, setAvatarDataUrl] = useState('');
   const [signatureDataUrl, setSignatureDataUrl] = useState('');
 
-  // Fetch all users on mount and listen to when the modal is made visible
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -79,7 +77,7 @@ export default function UserModal({ onClose }) {
   const loadEquipos = async () => {
     try {
       const data = await getEquipos();
-      setEquipos(data);
+      setEquipos(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error cargando equipos:', err);
       toast.error('No se pudieron cargar los equipos de trabajo.');
@@ -109,8 +107,6 @@ export default function UserModal({ onClose }) {
   useEffect(() => {
     const handleOpenAddUser = () => {
       setIsOpen(true);
-      const backdrop = backdropRef.current || document.getElementById('userBackdrop');
-      if (backdrop) backdrop.hidden = false;
       resetForm();
       fetchUsers();
       loadEquipos();
@@ -118,8 +114,6 @@ export default function UserModal({ onClose }) {
 
     const handleEditUser = (e) => {
       setIsOpen(true);
-      const backdrop = backdropRef.current || document.getElementById('userBackdrop');
-      if (backdrop) backdrop.hidden = false;
       if (e.detail && e.detail.userId) {
         setSelectedUserId(e.detail.userId);
       }
@@ -154,7 +148,6 @@ export default function UserModal({ onClose }) {
         setGoalTiers(user.goalTiers || []);
         setCanAuthorizeDiscount(user.canAuthorizeDiscount === true);
         setCanUseChecklist(user.canUseChecklist === true);
-        // Reset local media states while loading
         setAvatarDataUrl('');
         setSignatureDataUrl('');
         setTeamId(user.teamId ? String(user.teamId) : '');
@@ -180,51 +173,8 @@ export default function UserModal({ onClose }) {
     };
   }, [selectedUserId, users]);
 
-  const toggleActive = async (userId) => {
-    try {
-      await toggleUserActive(userId);
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, active: !u.active } : u));
-      if (selectedUserId === userId) {
-        setActive(prev => !prev);
-      }
-      invalidateStateCache();
-      window.dispatchEvent(new CustomEvent('usersUpdated'));
-      toast.success('Estado actualizado correctamente.', { duration: 1500 });
-    } catch (e) {
-      console.error('Error modifying user status:', e);
-      toast.error('No se pudo cambiar el estado del usuario.');
-    }
-  };
-
-  const handleDeleteUser = async (userId, userName) => {
-    const confirm = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente al usuario "${userName}"?`);
-    if (!confirm) return;
-
-    try {
-      setLoading(true);
-      await deleteUser(userId);
-      invalidateStateCache();
-      toast.success(`Usuario "${userName}" eliminado correctamente.`);
-
-      if (selectedUserId === userId) {
-        resetForm();
-      }
-      window.dispatchEvent(new CustomEvent('usersUpdated'));
-      await fetchUsers();
-    } catch (err) {
-      console.error('Error deleting user:', err);
-      toast.error('Ocurrió un error al intentar eliminar el usuario.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleClose = () => {
     setIsOpen(false);
-    const backdrop = backdropRef.current || document.getElementById('userBackdrop');
-    if (backdrop) {
-      backdrop.hidden = true;
-    }
     if (onClose) onClose();
   };
 
@@ -291,21 +241,19 @@ export default function UserModal({ onClose }) {
     }
   };
 
-
-
   const handleAddTier = () => {
     if (!tierName || !tierAmount || !tierPercentage) {
-      toast('Completa el nombre, monto y porcentaje del nivel.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
+      toast.error('Completa el nombre, monto y porcentaje del nivel.');
       return;
     }
     const amt = parseFloat(String(tierAmount).replace(/,/g, ''));
     const pct = parseFloat(tierPercentage);
     if (isNaN(amt) || amt <= 0) {
-      toast('El monto debe ser mayor a 0.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
+      toast.error('El monto debe ser mayor a 0.');
       return;
     }
     if (isNaN(pct) || pct <= 0) {
-      toast('El porcentaje debe ser mayor a 0.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
+      toast.error('El porcentaje debe ser mayor a 0.');
       return;
     }
     if (editingTierIndex !== null) {
@@ -344,7 +292,7 @@ export default function UserModal({ onClose }) {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!fullName || !email || !role) {
-      toast('Completa el Nombre Completo, Correo y Rol del usuario.', { icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> });
+      toast.error('Completa el Nombre Completo, Correo y Rol del usuario.');
       return;
     }
 
@@ -435,291 +383,445 @@ export default function UserModal({ onClose }) {
     }
   };
 
-  return (
-    <div 
-      ref={backdropRef}
-      className="modalBackdrop" 
-      id="userBackdrop" 
-      hidden={!isOpen}
-      style={{ display: isOpen ? 'flex' : 'none' }}
-      onClick={(e) => { if (userModalRef.current && !userModalRef.current.contains(e.target)) handleClose(); }}
+  if (!isOpen) return null;
+
+  const currentRoleStyle = ROLE_COLORS[role] || ROLE_COLORS.vendedor;
+
+  return ReactDOM.createPortal(
+    <div
+      className="settings-user-modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
     >
-      <div ref={userModalRef} className="modal settings-user-modal" role="dialog" aria-modal="true" aria-labelledby="userTitle">
-        <div className="modalHeader">
-          <div>
-            <div className="modalTitle" id="userTitle">
-              Pre-registro e Invitaciones de Usuarios
+      <div className="settings-user-modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+        {/* CABECERA DINÁMICA */}
+        <div className="settings-user-modal-header">
+          <div className="settings-user-header-left">
+            <div className="settings-user-header-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
             </div>
-            <div className="modalSubtitle">
-              Autorización de Google Login y asignación de roles operacionales
+            <div className="settings-user-header-title-box">
+              <h2 className="settings-user-modal-title" id="userModalTitle">
+                <span>{selectedUserId ? `Editar Usuario: ${fullName || 'Sin nombre'}` : 'Pre-registro de Usuario'}</span>
+                {selectedUserId && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      background: currentRoleStyle.bg,
+                      color: currentRoleStyle.color,
+                      border: `1px solid ${currentRoleStyle.border}`,
+                      textTransform: 'uppercase'
+                    }}
+                  >
+                    {ROLE_LABELS[role] || role}
+                  </span>
+                )}
+              </h2>
+              <p className="settings-user-modal-subtitle">
+                {selectedUserId
+                  ? 'Modificación de credenciales, roles, permisos y metas comerciales'
+                  : 'Autorización de Google Login y asignación de roles operacionales'}
+              </p>
             </div>
           </div>
-          <button className="btn-exit" id="btnUserClose" type="button" title="Cerrar" onClick={handleClose}>
-            <svg className="crm-icon-x" viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l10 10M14 4l-10 10" /></svg>
-          </button>
+
+          <div className="settings-user-header-right">
+            {selectedUserId && (
+              <button
+                type="button"
+                className="settings-user-btn-new-mode"
+                onClick={resetForm}
+                title="Cambiar al modo de crear nuevo usuario"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '13px', height: '13px', flexShrink: 0 }}>
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Nuevo usuario</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="settings-user-btn-close"
+              onClick={handleClose}
+              title="Cerrar modal"
+              aria-label="Cerrar modal"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px', flexShrink: 0, display: 'block' }}>
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <form id="userForm" className="settings-user-form" onSubmit={handleSave}>
-          <div className="modalBody settings-user-body">
-            {/* Google Login Info Banner */}
-            <div className="settings-google-banner">
+        {/* CUERPO CON SCROLL (BENTO CARDS) */}
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="settings-user-modal-body">
+            {/* Banner Informativo de Google Login */}
+            <div className="settings-user-google-banner">
               <svg viewBox="0 0 24 24">
                 <path fill="#EA4335" d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3C17.782 1.145 15.055 0 12 0 7.27 0 3.198 2.698 1.24 6.65l4.026 3.115Z" />
                 <path fill="#4285F4" d="M23.64 12.273c0-.818-.073-1.609-.208-2.373H12v4.582h6.54c-.28 1.514-1.134 2.8-2.42 3.668l3.8 2.946c2.227-2.055 3.52-5.073 3.52-8.823Z" />
                 <path fill="#FBBC05" d="M5.266 14.235 1.24 17.35C3.198 21.302 7.27 24 12 24c3.155 0 5.8-1.045 7.732-2.846l-3.8-2.946c-1.055.709-2.409 1.127-3.932 1.127-3.555 0-6.564-2.4-7.636-5.636l-4.027 3.114-1.071 1.422Z" />
                 <path fill="#34A853" d="M12 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3C17.782 1.145 15.055 0 12 0 7.27 0 3.198 2.698 1.24 6.65l4.026 3.115C2.31 9.764 5.318 4.909 12 4.909Z" />
               </svg>
-              <div>
-                <strong>Acceso Seguro con Google Accounts</strong>
-                El personal se autentica de forma segura vía Google Login. Solo pre-registra el correo y asigna el rol operativo correspondiente.
+              <div className="settings-user-google-text">
+                <strong>Autenticación corporativa vía Google Login</strong>
+                El colaborador iniciará sesión automáticamente con su cuenta de Google. Pre-registra su correo institucional o Gmail para conceder acceso y asignar sus privilegios.
               </div>
             </div>
 
-            {/* Row 1: Mode + Active */}
-            <div className="settings-field-group">
-              <div className="settings-modern-field">
-                <span>Modo de Operación</span>
-                <div className={`settings-mode-indicator ${selectedUserId ? 'settings-mode-indicator--edit' : 'settings-mode-indicator--new'}`}>
-                  <svg viewBox="0 0 24 24" style={{width: '18px', height: '18px', fill: 'none', stroke: 'currentColor', strokeWidth: 2, flexShrink: 0}}>
-                    {selectedUserId ? (
-                      <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                    ) : (
-                      <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></>
-                    )}
+            {/* BENTO BLOQUE 1: DATOS GENERALES Y PERFIL */}
+            <div className="settings-user-bento-card">
+              <div className="settings-user-bento-header">
+                <h3 className="settings-user-bento-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
                   </svg>
-                  {selectedUserId ? (
-                    <>
-                      <span>Editando Usuario</span>
-                      <button
-                        type="button"
-                        onClick={resetForm}
-                        style={{
-                          marginLeft: 'auto',
-                          background: '#0284c7',
-                          color: '#fff',
-                          border: 'none',
-                          padding: '3px 10px',
-                          borderRadius: '6px',
-                          fontSize: '10px',
-                          cursor: 'pointer',
-                          fontWeight: '800',
-                        }}
-                      >
-                        Nuevo usuario
-                      </button>
-                    </>
-                  ) : (
-                    'Pre-registrar Nuevo Usuario'
-                  )}
-                </div>
-              </div>
+                  <span>Perfil y Credenciales de Cuenta</span>
+                </h3>
 
-              <div className="settings-modern-field">
-                <span>Estado de Acceso</span>
-                <label className="settings-switch-inline">
+                <label className="settings-user-switch-label" title="Controla si el usuario puede iniciar sesión en el CRM">
+                  <span>Acceso Autorizado (Activo)</span>
                   <input
-                    id="userActive"
                     type="checkbox"
                     checked={active}
                     onChange={(e) => setActive(e.target.checked)}
                   />
-                  <span>ACCESO AUTORIZADO (ACTIVO)</span>
                 </label>
               </div>
-            </div>
 
-            {/* Row 2: Name + Email */}
-            <div className="settings-field-group">
-              <label className="settings-modern-field">
-                <span>Nombre completo</span>
-                <input
-                  id="userFullName"
-                  type="text"
-                  placeholder="Ej: Carlos Samalaj"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                />
-              </label>
-              <label className="settings-modern-field">
-                <span>Correo de Google (Gmail / Institucional)</span>
-                <input
-                  id="userEmail"
-                  type="email"
-                  placeholder="correo@jardinesdellago.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </label>
-            </div>
-
-            {/* Row 3: Phone + Role */}
-            <div className="settings-field-group">
-              <label className="settings-modern-field">
-                <span>Teléfono móvil</span>
-                <input
-                  id="userPhone"
-                  type="text"
-                  placeholder="Ej: 5632-5547"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </label>
-              <label className="settings-modern-field">
-                <span>Rol del Usuario</span>
-                <select
-                  id="userRole"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                >
-                  <option value="vendedor">Vendedor (Pipeline comercial y Cotizaciones)</option>
-                  <option value="recepcionista">Recepcionista (Operación del Calendario)</option>
-                  <option value="admin">Administrador (Acceso Total + Metas de Ventas)</option>
-                  <option value="eventos">Eventos (Gestión de checklists y reportes)</option>
-                  <option value="coordinador">Coordinador (Solo lectura: informes, checklists, ocupación)</option>
-                </select>
-              </label>
-              <label className="settings-modern-field">
-                <span>Equipo de Trabajo</span>
-                <select
-                  value={teamId}
-                  onChange={(e) => setTeamId(e.target.value)}
-                >
-                  <option value="">Sin equipo</option>
-                  {equipos.map(eq => (
-                    <option key={eq.id} value={eq.id}>{eq.nombre}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            {/* Puede autorizar descuentos */}
-            <div className="settings-modern-field">
-              <span>Autorizar descuentos</span>
-              <label className="settings-switch-inline">
-                <input
-                  type="checkbox"
-                  checked={canAuthorizeDiscount}
-                  onChange={(e) => setCanAuthorizeDiscount(e.target.checked)}
-                />
-                <span>PUEDE AUTORIZAR DESCUENTOS</span>
-              </label>
-              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                Recibirá notificaciones para aprobar o rechazar descuentos en cotizaciones
-              </div>
-            </div>
-
-            {/* Puede usar y llenar check lists */}
-            <div className="settings-modern-field">
-              <span>Uso de Check List</span>
-              <label className="settings-switch-inline">
-                <input
-                  type="checkbox"
-                  checked={canUseChecklist}
-                  onChange={(e) => setCanUseChecklist(e.target.checked)}
-                />
-                <span>PUEDE USAR Y LLENAR CHECK LISTS</span>
-              </label>
-              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                Permite a este usuario (incluyendo coordinadores) llenar, calificar y guardar check lists de eventos
-              </div>
-            </div>
-
-            {/* Avatar + Signature */}
-            <div className="settings-media-grid">
-              {/* Profile Photo */}
-              <div>
-                <span className="settings-media-label">Fotografía / Avatar</span>
-                <div className="settings-media-row">
-                  <div className="settings-avatar-circle">
-                    {avatarDataUrl ? (
-                      <img src={avatarDataUrl} alt="Avatar" />
-                    ) : (
-                      <span style={{ fontSize: '24px', color: '#94a3b8' }}>👤</span>
-                    )}
-                  </div>
-                  <div>
+              <div className="settings-user-form-grid">
+                {/* Nombre Completo */}
+                <div className="settings-user-field">
+                  <label className="settings-user-label" htmlFor="userFullName">Nombre Completo *</label>
+                  <div className="settings-user-input-wrap">
+                    <svg className="settings-user-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
                     <input
-                      id="userAvatar"
-                      type="file"
-                      accept="image/png,image/jpeg"
-                      style={{ display: 'none' }}
-                      onChange={(e) => handleFileUpload(e, 'avatar')}
+                      id="userFullName"
+                      type="text"
+                      className="with-icon"
+                      placeholder="Ej. Carlos Roberto Samalaj"
+                      required
+                      value={fullName ?? ''}
+                      onChange={(e) => setFullName(e.target.value)}
                     />
-                    <button
-                      className="btn-mantenimiento"
-                      type="button"
-                      onClick={() => document.getElementById('userAvatar').click()}
-                    >
-                      Subir foto
-                    </button>
-                    <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>PNG o JPG (Máx. 2MB)</div>
                   </div>
                 </div>
+
+                {/* Correo Google */}
+                <div className="settings-user-field">
+                  <label className="settings-user-label" htmlFor="userEmail">Correo Google (Gmail / Institucional) *</label>
+                  <div className="settings-user-input-wrap">
+                    <svg className="settings-user-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                      <polyline points="22,6 12,13 2,6" />
+                    </svg>
+                    <input
+                      id="userEmail"
+                      type="email"
+                      className="with-icon"
+                      placeholder="ejemplo@jardinesdellago.com"
+                      required
+                      value={email ?? ''}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Teléfono Móvil */}
+                <div className="settings-user-field">
+                  <label className="settings-user-label" htmlFor="userPhone">Teléfono Móvil</label>
+                  <div className="settings-user-input-wrap">
+                    <svg className="settings-user-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                    </svg>
+                    <input
+                      id="userPhone"
+                      type="text"
+                      className="with-icon"
+                      placeholder="Ej. 5632-5547"
+                      value={phone ?? ''}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Rol del Usuario */}
+                <div className="settings-user-field">
+                  <label className="settings-user-label" htmlFor="userRole">Rol del Usuario *</label>
+                  <select
+                    id="userRole"
+                    value={role ?? 'vendedor'}
+                    onChange={(e) => setRole(e.target.value)}
+                  >
+                    <option value="vendedor">Vendedor (Pipeline comercial y Cotizaciones)</option>
+                    <option value="recepcionista">Recepcionista (Operación del Calendario)</option>
+                    <option value="admin">Administrador (Acceso Total + Metas de Ventas)</option>
+                    <option value="eventos">Eventos (Gestión de checklists y reportes)</option>
+                    <option value="coordinador">Coordinador (Solo lectura: informes, checklists, ocupación)</option>
+                  </select>
+                </div>
+
+                {/* Equipo de Trabajo */}
+                <div className="settings-user-field" style={{ gridColumn: 'span 2' }}>
+                  <label className="settings-user-label" htmlFor="userTeam">Equipo de Trabajo (Área)</label>
+                  <select
+                    id="userTeam"
+                    value={teamId ?? ''}
+                    onChange={(e) => setTeamId(e.target.value)}
+                  >
+                    <option value="">Sin equipo asignado</option>
+                    {equipos.map(eq => (
+                      <option key={eq.id} value={eq.id}>{eq.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* BENTO BLOQUE 2: PERMISOS OPERATIVOS ESPECIALES */}
+            <div className="settings-user-bento-card">
+              <div className="settings-user-bento-header">
+                <h3 className="settings-user-bento-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  <span>Permisos Especiales de Operación</span>
+                </h3>
               </div>
 
-              {/* Digital Signature */}
-              <div>
-                <span className="settings-media-label">Firma digital para cotizaciones</span>
-                <div className="settings-media-row">
-                  <div className="settings-signature-box">
+              <div className="settings-user-permissions-grid">
+                {/* Permiso 1: Autorizar Descuentos */}
+                <div className={`settings-user-perm-card ${canAuthorizeDiscount ? 'active' : ''}`}>
+                  <div className="settings-user-perm-info">
+                    <div className="settings-user-perm-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        <line x1="9" y1="9" x2="15" y2="15" />
+                        <circle cx="9.5" cy="9.5" r=".5" fill="currentColor" />
+                        <circle cx="14.5" cy="14.5" r=".5" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="settings-user-perm-title">Autorizar Descuentos</h4>
+                      <p className="settings-user-perm-desc">
+                        Recibirá notificaciones en tiempo real en el Centro de Autorizaciones para aprobar o rechazar descuentos comerciales.
+                      </p>
+                    </div>
+                  </div>
+                  <label className="settings-user-switch-label" title="Habilitar permiso para autorizar descuentos">
+                    <input
+                      type="checkbox"
+                      checked={canAuthorizeDiscount}
+                      onChange={(e) => setCanAuthorizeDiscount(e.target.checked)}
+                    />
+                  </label>
+                </div>
+
+                {/* Permiso 2: Uso de Check List */}
+                <div className={`settings-user-perm-card ${canUseChecklist ? 'active' : ''}`}>
+                  <div className="settings-user-perm-info">
+                    <div className="settings-user-perm-icon" style={{ color: '#059669' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                        <polyline points="9 14 11 16 15 11" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="settings-user-perm-title">Llenar y Guardar Check Lists</h4>
+                      <p className="settings-user-perm-desc">
+                        Permite a este usuario (incluyendo coordinadores y áreas operativas) calificar y registrar checklists en eventos.
+                      </p>
+                    </div>
+                  </div>
+                  <label className="settings-user-switch-label" title="Habilitar permiso para checklists">
+                    <input
+                      type="checkbox"
+                      checked={canUseChecklist}
+                      onChange={(e) => setCanUseChecklist(e.target.checked)}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* BENTO BLOQUE 3: FOTOGRAFÍA Y FIRMA DIGITAL (2 COLUMNAS) */}
+            <div className="settings-user-bento-card">
+              <div className="settings-user-bento-header">
+                <h3 className="settings-user-bento-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                    <line x1="12" y1="22.08" x2="12" y2="12" />
+                  </svg>
+                  <span>Fotografía y Firma Digital</span>
+                </h3>
+              </div>
+
+              <div className="settings-user-media-grid">
+                {/* Columna 1: Avatar */}
+                <div className="settings-user-media-panel">
+                  <div className="settings-user-media-panel-header">
+                    <span className="settings-user-media-title">Fotografía / Avatar</span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>PNG o JPG (Máx. 2MB)</span>
+                  </div>
+
+                  <div className="settings-user-avatar-row">
+                    <div className="settings-user-avatar-preview">
+                      {avatarDataUrl ? (
+                        <img src={avatarDataUrl} alt="Avatar de usuario" />
+                      ) : (
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                      )}
+                    </div>
+
+                    <div className="settings-user-media-actions">
+                      <input
+                        id="userAvatarInput"
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handleFileUpload(e, 'avatar')}
+                      />
+                      <button
+                        type="button"
+                        className="settings-user-btn-upload"
+                        onClick={() => document.getElementById('userAvatarInput').click()}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        <span>{avatarDataUrl ? 'Cambiar foto' : 'Subir foto'}</span>
+                      </button>
+
+                      {avatarDataUrl && (
+                        <button
+                          type="button"
+                          className="settings-user-btn-remove"
+                          onClick={() => setAvatarDataUrl('')}
+                          title="Eliminar foto de perfil"
+                        >
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Columna 2: Firma Digital */}
+                <div className="settings-user-media-panel">
+                  <div className="settings-user-media-panel-header">
+                    <span className="settings-user-media-title">Firma Digital (Cotizaciones)</span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Fondo transparente recomendado</span>
+                  </div>
+
+                  <div className="settings-user-signature-box">
                     {signatureDataUrl ? (
-                      <img src={signatureDataUrl} alt="Firma" />
+                      <img src={signatureDataUrl} alt="Firma digital" />
                     ) : (
-                      <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>Sin firma registrada</span>
+                      <span style={{ fontSize: '11.5px', color: '#94a3b8', fontStyle: 'italic' }}>
+                        Sin firma digital registrada
+                      </span>
                     )}
                   </div>
-                  <div>
+
+                  <div className="settings-user-media-actions">
                     <input
-                      id="userSignature"
+                      id="userSignatureInput"
                       type="file"
                       accept="image/png,image/jpeg"
                       style={{ display: 'none' }}
                       onChange={(e) => handleFileUpload(e, 'signature')}
                     />
                     <button
-                      className="btn-mantenimiento"
                       type="button"
-                      onClick={() => document.getElementById('userSignature').click()}
+                      className="settings-user-btn-upload"
+                      onClick={() => document.getElementById('userSignatureInput').click()}
                     >
-                      Subir firma
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                      </svg>
+                      <span>{signatureDataUrl ? 'Cambiar firma' : 'Subir firma'}</span>
                     </button>
+
+                    {signatureDataUrl && (
+                      <button
+                        type="button"
+                        className="settings-user-btn-remove"
+                        onClick={() => setSignatureDataUrl('')}
+                        title="Eliminar firma digital"
+                      >
+                        Quitar
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Goal Tiers - Comisiones */}
-            <div className="settings-goals-section">
-              <div className="settings-goals-header">
-                <span className="settings-goals-title">🎯 Niveles de Meta y Comisiones</span>
-                <label className="settings-goals-toggle">
+            {/* BENTO BLOQUE 4: METAS Y COMISIONES */}
+            <div className="settings-user-bento-card">
+              <div className="settings-user-bento-header">
+                <h3 className="settings-user-bento-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="6" />
+                    <circle cx="12" cy="12" r="2" />
+                  </svg>
+                  <span>Niveles de Meta y Comisiones Comerciales</span>
+                </h3>
+
+                <label className="settings-user-switch-label" title="Habilitar esquema de comisiones">
+                  <span>Habilitar metas y comisiones</span>
                   <input
-                    id="userSalesTargetEnabled"
                     type="checkbox"
                     checked={salesTargetEnabled}
                     onChange={(e) => setSalesTargetEnabled(e.target.checked)}
                   />
-                  <span>Habilitar metas y comisiones</span>
                 </label>
               </div>
 
               {salesTargetEnabled ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {/* Tier Inputs */}
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>Niveles de Meta</div>
-                  <div className="settings-goals-input-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-                    <div className="settings-modern-field" style={{ flex: '1 1 140px' }}>
-                      <span>Nombre del nivel</span>
-                      <input type="text" placeholder="Ej: Meta Media" value={tierName} onChange={(e) => setTierName(e.target.value)} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* Fila de ingreso de nivel */}
+                  <div className="settings-user-goals-row">
+                    <div className="settings-user-field" style={{ flex: '1 1 180px' }}>
+                      <label className="settings-user-label">Nombre del nivel</label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Meta Media, Meta Alta"
+                        value={tierName ?? ''}
+                        onChange={(e) => setTierName(e.target.value)}
+                      />
                     </div>
-                    <div className="settings-modern-field" style={{ flex: '0 0 130px' }}>
-                      <span>Monto mínimo Q</span>
+
+                    <div className="settings-user-field" style={{ flex: '0 0 150px' }}>
+                      <label className="settings-user-label">Monto mínimo (Q)</label>
                       <input
                         type="text"
                         placeholder="Q 160,000"
-                        value={tierAmount}
+                        value={tierAmount ?? ''}
                         onChange={(e) => {
                           const val = e.target.value;
                           const clean = val.replace(/[^0-9.,]/g, '');
@@ -727,85 +829,178 @@ export default function UserModal({ onClose }) {
                         }}
                       />
                     </div>
-                    <div className="settings-modern-field" style={{ flex: '0 0 110px' }}>
-                      <span>% Comisión</span>
-                      <input type="number" min="0" step="0.1" placeholder="Ej: 2.5" value={tierPercentage} onChange={(e) => setTierPercentage(e.target.value)} />
+
+                    <div className="settings-user-field" style={{ flex: '0 0 110px' }}>
+                      <label className="settings-user-label">% Comisión</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        placeholder="Ej. 2.5"
+                        value={tierPercentage ?? ''}
+                        onChange={(e) => setTierPercentage(e.target.value)}
+                      />
                     </div>
-                    <div style={{ display: 'flex', gap: '4px', marginBottom: '1px' }}>
-                      <button className="btn-cotizar" type="button" onClick={handleAddTier}>
-                        {editingTierIndex !== null ? 'Actualizar' : 'Agregar'}
+
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={handleAddTier}
+                        style={{
+                          height: '40px',
+                          padding: '0 16px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '12.5px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {editingTierIndex !== null ? 'Actualizar' : 'Agregar nivel'}
                       </button>
+
                       {editingTierIndex !== null && (
-                        <button className="btn-cancel" type="button" onClick={() => {
-                          setTierName('');
-                          setTierAmount('');
-                          setTierPercentage('');
-                          setEditingTierIndex(null);
-                        }} style={{ padding: '6px 12px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTierName('');
+                            setTierAmount('');
+                            setTierPercentage('');
+                            setEditingTierIndex(null);
+                          }}
+                          style={{
+                            height: '40px',
+                            padding: '0 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#475569',
+                            fontWeight: 700,
+                            fontSize: '12.5px',
+                            cursor: 'pointer'
+                          }}
+                        >
                           Cancelar
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {/* Tiers Table */}
-                  <div className="settings-modern-field">
-                    <span>Niveles configurados</span>
-                    <div className="settings-goals-table-wrap">
-                      <table>
-                        <thead><tr><th>Nivel</th><th>Monto mínimo</th><th>% Comisión</th><th style={{ width: '80px', textAlign: 'center' }}>Acciones</th></tr></thead>
-                        <tbody id="userTiersBody">
-                          {goalTiers.length === 0 ? (
-                            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>Sin niveles configurados. Agrega niveles como Meta Media, Meta Alta, etc.</td></tr>
-                          ) : (
-                            goalTiers.map((t, i) => (
-                              <tr key={i} style={editingTierIndex === i ? { background: '#f0fdf4' } : {}}>
-                                <td style={{ fontWeight: '600' }}>{t.name}</td>
-                                <td style={{ fontWeight: '700', color: '#059669' }}>Q {t.amount.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                <td style={{ fontWeight: '700', color: '#2563eb' }}>{t.percentage}%</td>
-                                <td style={{ textAlign: 'center', display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
-                                  <button type="button" className="settings-usr-icon-btn" title="Editar nivel" onClick={() => handleEditTier(i)} style={{ padding: '2px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#6366f1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <svg viewBox="0 0 24 24" style={{ width: '14px', height: '14px', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }}>
-                                      <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                    </svg>
-                                  </button>
-                                  <button type="button" className="settings-goal-delete-btn" title="Eliminar nivel" onClick={() => handleRemoveTier(i)} style={{ margin: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                  {/* Tabla de niveles */}
+                  <table className="settings-user-goals-table">
+                    <thead>
+                      <tr>
+                        <th>Nivel</th>
+                        <th>Monto Mínimo</th>
+                        <th>% Comisión</th>
+                        <th style={{ width: '80px', textAlign: 'center' }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {goalTiers.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontStyle: 'italic' }}>
+                            Sin niveles de meta configurados. Agrega niveles como Meta Baja, Meta Media o Meta Alta.
+                          </td>
+                        </tr>
+                      ) : (
+                        goalTiers.map((t, i) => (
+                          <tr key={i} style={editingTierIndex === i ? { background: '#f0fdf4' } : {}}>
+                            <td style={{ fontWeight: 700, color: '#0f172a' }}>{t.name}</td>
+                            <td style={{ fontWeight: 800, color: '#059669' }}>
+                              Q {t.amount.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ fontWeight: 800, color: '#2563eb' }}>{t.percentage}%</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  title="Editar nivel"
+                                  onClick={() => handleEditTier(i)}
+                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#0284c7', padding: '3px' }}
+                                >
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Eliminar nivel"
+                                  onClick={() => handleRemoveTier(i)}
+                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '3px' }}
+                                >
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', padding: '10px', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>
-                  Marca la casilla superior para configurar los niveles de meta y comisiones.
+                <div style={{ textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic' }}>
+                  Activa el interruptor para asignar metas escalonadas y porcentajes de comisión por vendedor.
                 </div>
               )}
             </div>
-
           </div>
 
-          {/* Footer */}
-          <div className="modalFooter" style={{ padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', flexShrink: 0 }}>
-            <div className="leftActions">
-              <button className="btn-cancel" type="button" onClick={resetForm}>
-                Limpiar Formulario
-              </button>
-            </div>
-            <div className="rightActions" style={{ display: 'flex', gap: '10px' }}>
-              <button className="btn-exit" type="button" onClick={handleClose}>
+          {/* PIE DE ACCIONES FIJO */}
+          <div className="settings-user-modal-footer">
+            <button
+              type="button"
+              className="settings-user-footer-btn-clean"
+              onClick={resetForm}
+              disabled={loading}
+            >
+              Limpiar Formulario
+            </button>
+
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="settings-user-footer-btn-cancel"
+                onClick={handleClose}
+                disabled={loading}
+              >
                 Cancelar
               </button>
-              <button className="btn-teal" id="btnUserSubmit" type="submit" disabled={loading}>
-                {loading ? 'Guardando...' : (selectedUserId ? 'Guardar Cambios' : 'Pre-registrar Usuario')}
+
+              <button
+                type="submit"
+                className="settings-user-footer-btn-submit"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                      <polyline points="23 4 23 10 17 10" />
+                      <polyline points="1 20 1 14 7 14" />
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span>{selectedUserId ? 'Guardar Cambios' : 'Pre-registrar Usuario'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

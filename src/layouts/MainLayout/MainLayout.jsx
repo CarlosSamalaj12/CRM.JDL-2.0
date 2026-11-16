@@ -190,77 +190,10 @@ export default function MainLayout() {
       loadInitialDataFromServer(true);
     });
 
-    const unsubDiscountAuth = socketService.on('discount-auth-request', (data) => {
-      const curUser = authService.getCurrentUser();
-      if (curUser?.canAuthorizeDiscount !== true) return;
-      if (data.autorizadorId && data.autorizadorId !== curUser.id) return;
-
-      const eventName = data.eventoNombre || data.eventoId || 'Desconocido';
-      const clientName = data.eventoCliente || '—';
-      const amount = `Q ${Number(data.montoDescuento || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`;
-
-      Swal.fire({
-        title: 'Solicitud de autorización',
-        html: `
-          <div style="text-align:left;font-size:13px">
-            <p><strong>Evento:</strong> ${eventName}</p>
-            <p><strong>Cliente:</strong> ${clientName}</p>
-            <p><strong>Descuento:</strong> ${amount}</p>
-            ${data.eventoSalon ? `<p><strong>Salón:</strong> ${data.eventoSalon}</p>` : ''}
-            ${data.eventoFecha ? `<p><strong>Fecha:</strong> ${data.eventoFecha}</p>` : ''}
-            <hr style="margin:10px 0">
-            <p style="font-size:12px;color:#64748b;">¿Autorizas este descuento?</p>
-          </div>
-        `,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: '✅ Aprobar',
-        cancelButtonText: '❌ Rechazar',
-        confirmButtonColor: '#059669',
-        cancelButtonColor: '#dc2626',
-        showDenyButton: true,
-        denyButtonText: '🔙 Revisar después',
-        denyButtonColor: '#6b7280',
-        input: 'textarea',
-        inputPlaceholder: 'Motivo (opcional, requerido si rechazas)',
-        inputValidator: (value) => {
-          if (value && value.trim().length > 500) return 'Máximo 500 caracteres';
-        },
-        preDeny: () => { Swal.close(); },
-      }).then(async (result) => {
-        if (result.isConfirmed) {
-          try {
-            await api.post('/api/discount-auth/responder', {
-              solicitudId: data.solicitudId,
-              autorizadorId: curUser.id,
-              estado: 'aprobado',
-              motivo: result.value || '',
-            });
-            Swal.fire('Aprobado', 'Descuento autorizado correctamente', 'success');
-          } catch (err) {
-            Swal.fire('Error', err.message || 'No se pudo procesar la respuesta', 'error');
-          }
-        } else if (result.dismiss === Swal.DismissReason.cancel) {
-          try {
-            await api.post('/api/discount-auth/responder', {
-              solicitudId: data.solicitudId,
-              autorizadorId: curUser.id,
-              estado: 'rechazado',
-              motivo: result.value || '',
-            });
-            Swal.fire('Rechazado', 'Descuento rechazado', 'info');
-          } catch (err) {
-            Swal.fire('Error', err.message || 'No se pudo procesar la respuesta', 'error');
-          }
-        }
-      });
-    });
-
     return () => {
       window.removeEventListener('entity:changed', handleStateChanged);
       unsubscribeState();
       unsubscribeEntity();
-      unsubDiscountAuth();
     };
   }, [navigate]);
 

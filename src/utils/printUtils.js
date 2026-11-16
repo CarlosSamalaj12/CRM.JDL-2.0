@@ -652,7 +652,8 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
       const price = Number(item?.price || 0);
       return sum + Number(item?.total ?? qty * price);
     }, 0));
-    const discountDoc = Number(quote.discountAmount || 0);
+    const isDiscountApproved = quote.isDiscountApproved !== false;
+    const discountDoc = isDiscountApproved ? Number(quote.discountAmount || 0) : 0;
     const netSubtotalDoc = Math.max(0, subtotalDoc - discountDoc);
 
     // Tip sólo se incluye en documento impreso cuando printOption === 'completa' (Cotización + Contrato)
@@ -1530,6 +1531,12 @@ export const generateQuotePrintDocument = async (quote, user, printOption = "sta
                 </tr>
               </tbody>
             </table>
+
+            ${quote.discountPendingNotice ? `
+            <div style="margin: 12px 0 8px; padding: 8px 12px; background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 4px; font-size: 11px; color: #92400e; line-height: 1.4;">
+              <strong>NOTA ADMINISTRATIVA DE DESCUENTO:</strong> ${escapeHtml(quote.discountPendingNotice)}
+            </div>
+            ` : ''}
 
             <div class="policyTitle">NOTAS</div>
             <div class="policyBox">

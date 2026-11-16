@@ -112,3 +112,132 @@ export function modernConfirmReleaseMaintenance() {
     cancelText: "No, cancelar"
   });
 }
+
+export function toastDiscountRequest({ eventName, clientName, amount, onAction }) {
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+  toastLib(
+    (t) => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '270px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '13px', color: '#0f172a' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span>Solicitud de Descuento</span>
+        </div>
+        <div style={{ fontSize: '12px', color: '#334155', lineHeight: '1.4' }}>
+          <div><strong>{eventName}</strong> {clientName ? `• ${clientName}` : ''}</div>
+          <div style={{ color: '#0284c7', fontWeight: '700', marginTop: '2px' }}>Descuento: {amount}</div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+          <button
+            type="button"
+            onClick={() => toastLib.dismiss(t.id)}
+            style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer', fontSize: '11.5px', fontWeight: '600', color: '#64748b' }}
+          >
+            Cerrar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              toastLib.dismiss(t.id);
+              if (typeof onAction === 'function') onAction();
+            }}
+            style={{ padding: '4px 12px', borderRadius: '6px', border: 'none', background: '#0284c7', color: 'white', cursor: 'pointer', fontSize: '11.5px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            Ver Solicitudes →
+          </button>
+        </div>
+      </div>
+    ),
+    { duration: 9000, id: 'discount-request-toast' }
+  );
+}
+
+export function toastDiscountResolution({ isApproved, eventName, clientName, amount, motivo, isAuthorizerCopy = false, solicitanteName = '' }) {
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+  toastLib(
+    (t) => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '290px', maxWidth: '350px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '13px', color: isApproved ? '#065f46' : '#991b1b' }}>
+            {isApproved ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <polyline points="9 12 11 14 15 10" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+            )}
+            <span>
+              {isAuthorizerCopy ? 'Resolución Notificada' : (isApproved ? 'Descuento Autorizado' : 'Descuento No Autorizado')}
+            </span>
+          </div>
+          <span style={{
+            fontSize: '10px',
+            fontWeight: '800',
+            padding: '2px 8px',
+            borderRadius: '999px',
+            background: isApproved ? '#d1fae5' : '#fee2e2',
+            color: isApproved ? '#065f46' : '#991b1b',
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em'
+          }}>
+            {isApproved ? 'Aprobado' : 'Rechazado'}
+          </span>
+        </div>
+
+        <div style={{ fontSize: '12px', color: '#334155', lineHeight: '1.4' }}>
+          <div><strong>{eventName}</strong> {clientName ? `• ${clientName}` : ''}</div>
+          <div style={{ color: isApproved ? '#047857' : '#b91c1c', fontWeight: '700', marginTop: '3px' }}>
+            Descuento: {amount}
+          </div>
+          {motivo && (
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontStyle: 'italic', background: '#f8fafc', padding: '4px 6px', borderRadius: '4px' }}>
+              Motivo: {motivo}
+            </div>
+          )}
+          {isAuthorizerCopy ? (
+            <div style={{ fontSize: '11px', color: '#0369a1', marginTop: '4px', fontWeight: '600' }}>
+              Notificación enviada en tiempo real a: <strong>{solicitanteName || 'Vendedor'}</strong>
+            </div>
+          ) : (
+            isApproved && (
+              <div style={{ fontSize: '11px', color: '#047857', marginTop: '4px', fontWeight: '500' }}>
+                El descuento ya está disponible para aplicarse en cotizaciones y contratos.
+              </div>
+            )
+          )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+          <button
+            type="button"
+            onClick={() => toastLib.dismiss(t.id)}
+            style={{
+              padding: '4px 12px',
+              borderRadius: '6px',
+              border: isApproved ? '1px solid #10b981' : '1px solid #cbd5e1',
+              background: isApproved ? '#10b981' : 'white',
+              color: isApproved ? 'white' : '#64748b',
+              cursor: 'pointer',
+              fontSize: '11.5px',
+              fontWeight: '700'
+            }}
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    ),
+    { duration: 10000, id: `discount-response-${Date.now()}` }
+  );
+}

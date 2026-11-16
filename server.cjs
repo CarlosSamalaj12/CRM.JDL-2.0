@@ -529,6 +529,8 @@ async function ensureDiscountAuthStructure() {
         respuesta_motivo TEXT NULL,
         fecha_solicitud TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         fecha_respuesta TIMESTAMP NULL,
+        editado TINYINT(1) NOT NULL DEFAULT 0,
+        monto_anterior DECIMAL(12,2) NULL,
         PRIMARY KEY (id),
         KEY idx_solicitudes_evento (evento_id),
         KEY idx_solicitudes_estado (estado),
@@ -536,6 +538,12 @@ async function ensureDiscountAuthStructure() {
         KEY idx_solicitudes_solicitante (solicitante_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    try {
+      await conn.query("ALTER TABLE solicitudes_autorizacion ADD COLUMN editado TINYINT(1) NOT NULL DEFAULT 0 AFTER estado");
+    } catch (_) {}
+    try {
+      await conn.query("ALTER TABLE solicitudes_autorizacion ADD COLUMN monto_anterior DECIMAL(12,2) NULL AFTER monto_descuento");
+    } catch (_) {}
   } finally {
     if (conn) conn.release();
   }
@@ -8151,7 +8159,7 @@ app.put("/api/state", authenticateJWT, async (req, res) => {
 // DISCOUNT AUTHORIZATION ROUTES
 // ==========================================
 
-// Solicitar autorización de descuento
+// Solicitar o actualizar autorización de descuento
 app.post("/api/discount-auth/solicitar", async (req, res) => {
   const { eventoId, cotizacionId, tipoDescuento, valorDescuento, montoDescuento, solicitanteId, eventoNombre, eventoCliente, eventoFecha, eventoSalon, eventoTotal } = req.body;
   if (!eventoId || !solicitanteId) return res.status(400).json({ message: "Faltan datos requeridos (eventoId y solicitanteId)" });
@@ -8164,25 +8172,76 @@ app.post("/api/discount-auth/solicitar", async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    const result = await conn.query(
-      `INSERT INTO solicitudes_autorizacion
-        (evento_id, cotizacion_id, solicitante_id, tipo_descuento, valor_descuento, monto_descuento, estado, evento_nombre, evento_cliente, evento_fecha, evento_salon, evento_total)
-       VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?, ?)`,
-      [
-        str(eventoId).slice(0, 120),
-        str(cotizacionId).slice(0, 120) || null,
-        str(solicitanteId).slice(0, 120),
-        str(tipoDescuento || 'AMOUNT').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT',
-        cleanNum(valorDescuento),
-        cleanNum(montoDescuento),
-        str(eventoNombre).slice(0, 200) || '',
-        str(eventoCliente).slice(0, 200) || '',
-        str(eventoFecha).slice(0, 20) || '',
-        str(eventoSalon).slice(0, 100) || '',
-        cleanNum(eventoTotal)
-      ]
+
+    // Verificar si ya existe una solicitud PENDIENTE para este evento
+    const existingRows = await conn.query(
+      "SELECT id, monto_descuento, valor_descuento, tipo_descuento FROM solicitudes_autorizacion WHERE evento_id = ? AND estado = 'pendiente' ORDER BY fecha_solicitud DESC LIMIT 1",
+      [str(eventoId).slice(0, 120)]
     );
-    const solicitudId = Number(result.insertId);
+
+    let solicitudId;
+    let isUpdated = false;
+    let prevMonto = null;
+
+    if (existingRows && existingRows.length > 0) {
+      // Reemplazo/actualización atómica de la solicitud pendiente existente
+      solicitudId = Number(existingRows[0].id);
+      prevMonto = Number(existingRows[0].monto_descuento || 0);
+      isUpdated = true;
+
+      await conn.query(
+        `UPDATE solicitudes_autorizacion SET
+          cotizacion_id = ?,
+          solicitante_id = ?,
+          tipo_descuento = ?,
+          valor_descuento = ?,
+          monto_descuento = ?,
+          monto_anterior = ?,
+          editado = 1,
+          evento_nombre = ?,
+          evento_cliente = ?,
+          evento_fecha = ?,
+          evento_salon = ?,
+          evento_total = ?,
+          fecha_solicitud = NOW()
+         WHERE id = ?`,
+        [
+          str(cotizacionId).slice(0, 120) || null,
+          str(solicitanteId).slice(0, 120),
+          str(tipoDescuento || 'AMOUNT').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT',
+          cleanNum(valorDescuento),
+          cleanNum(montoDescuento),
+          prevMonto,
+          str(eventoNombre).slice(0, 200) || '',
+          str(eventoCliente).slice(0, 200) || '',
+          str(eventoFecha).slice(0, 20) || '',
+          str(eventoSalon).slice(0, 100) || '',
+          cleanNum(eventoTotal),
+          solicitudId
+        ]
+      );
+    } else {
+      // Nueva solicitud
+      const result = await conn.query(
+        `INSERT INTO solicitudes_autorizacion
+          (evento_id, cotizacion_id, solicitante_id, tipo_descuento, valor_descuento, monto_descuento, estado, editado, evento_nombre, evento_cliente, evento_fecha, evento_salon, evento_total)
+         VALUES (?, ?, ?, ?, ?, ?, 'pendiente', 0, ?, ?, ?, ?, ?)`,
+        [
+          str(eventoId).slice(0, 120),
+          str(cotizacionId).slice(0, 120) || null,
+          str(solicitanteId).slice(0, 120),
+          str(tipoDescuento || 'AMOUNT').toUpperCase() === 'PERCENT' ? 'PERCENT' : 'AMOUNT',
+          cleanNum(valorDescuento),
+          cleanNum(montoDescuento),
+          str(eventoNombre).slice(0, 200) || '',
+          str(eventoCliente).slice(0, 200) || '',
+          str(eventoFecha).slice(0, 20) || '',
+          str(eventoSalon).slice(0, 100) || '',
+          cleanNum(eventoTotal)
+        ]
+      );
+      solicitudId = Number(result.insertId);
+    }
 
     // Notificar a todos los usuarios autorizadores vía socket
     if (io) {
@@ -8199,6 +8258,8 @@ app.post("/api/discount-auth/solicitar", async (req, res) => {
             tipoDescuento: str(tipoDescuento || 'AMOUNT'),
             valorDescuento: cleanNum(valorDescuento),
             montoDescuento: cleanNum(montoDescuento),
+            montoAnterior: prevMonto,
+            editado: isUpdated,
             eventoNombre: str(eventoNombre || ''),
             eventoCliente: str(eventoCliente || ''),
             eventoFecha: str(eventoFecha || ''),
@@ -8207,15 +8268,58 @@ app.post("/api/discount-auth/solicitar", async (req, res) => {
             autorizadorId: str(auth.id),
           });
         }
+        io.emit('discount-auth:count-updated');
       } catch (socketErr) {
         console.warn('[DISCOUNT-AUTH] Advertencia emitiendo socket discount-auth-request:', socketErr.message);
       }
     }
 
-    return res.json({ ok: true, solicitudId });
+    return res.json({ ok: true, solicitudId, isUpdated, prevMonto });
   } catch (error) {
     console.error('[DISCOUNT-AUTH] Error al solicitar:', error.message);
     return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Cancelar una solicitud pendiente (retractación por parte del vendedor)
+app.post("/api/discount-auth/cancelar", async (req, res) => {
+  const { eventoId, solicitanteId } = req.body;
+  if (!eventoId) return res.status(400).json({ message: "eventoId requerido" });
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const rows = await conn.query(
+      "SELECT id, evento_nombre, monto_descuento FROM solicitudes_autorizacion WHERE evento_id = ? AND estado = 'pendiente'",
+      [str(eventoId)]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.json({ ok: true, message: "No había solicitudes pendientes" });
+    }
+
+    const solicitudId = Number(rows[0].id);
+    await conn.query(
+      "UPDATE solicitudes_autorizacion SET estado = 'cancelado', respuesta_motivo = 'Cancelado por el vendedor', fecha_respuesta = NOW() WHERE id = ?",
+      [solicitudId]
+    );
+
+    if (io) {
+      io.emit('discount-auth-canceled', {
+        solicitudId,
+        eventoId: str(eventoId),
+        solicitanteId: str(solicitanteId || ''),
+        eventoNombre: str(rows[0].evento_nombre || ''),
+      });
+      io.emit('discount-auth:count-updated');
+    }
+
+    return res.json({ ok: true, solicitudId });
+  } catch (err) {
+    console.error('[DISCOUNT-AUTH] Error al cancelar:', err.message);
+    return res.status(500).json({ message: err.message });
   } finally {
     if (conn) conn.release();
   }
@@ -8234,18 +8338,74 @@ app.post("/api/discount-auth/responder", async (req, res) => {
       [estado, autorizadorId, motivo || null, solicitudId]
     );
     // Obtener la solicitud actualizada para notificar al solicitante
-    const [solicitud] = await conn.query("SELECT * FROM solicitudes_autorizacion WHERE id = ?", [solicitudId]);
-    if (solicitud && io) {
-      io.emit('discount-auth-response', {
-        solicitudId: Number(solicitud.id),
-        eventoId: str(solicitud.evento_id),
-        solicitanteId: str(solicitud.solicitante_id),
-        estado: str(solicitud.estado),
-        motivo: solicitud.respuesta_motivo || null,
-        tipoDescuento: str(solicitud.tipo_descuento),
-        valorDescuento: Number(solicitud.valor_descuento),
-        montoDescuento: Number(solicitud.monto_descuento),
-      });
+    const rows = await conn.query("SELECT * FROM solicitudes_autorizacion WHERE id = ?", [solicitudId]);
+    const solicitud = rows && rows[0];
+    if (solicitud) {
+      // Buscar información del solicitante y autorizador
+      const solicitanteRows = await conn.query("SELECT id, correo, nombre_completo FROM usuarios WHERE id = ?", [solicitud.solicitante_id]);
+      const solicitanteUser = solicitanteRows?.[0];
+      const autorizadorRows = await conn.query("SELECT id, correo, nombre_completo FROM usuarios WHERE id = ?", [autorizadorId]);
+      const autorizadorUser = autorizadorRows?.[0];
+
+      if (io) {
+        io.emit('discount-auth-response', {
+          solicitudId: Number(solicitud.id),
+          eventoId: str(solicitud.evento_id),
+          solicitanteId: str(solicitud.solicitante_id),
+          solicitanteCorreo: str(solicitanteUser?.correo || ''),
+          solicitanteNombre: str(solicitanteUser?.nombre_completo || 'Vendedor'),
+          autorizadorId: str(autorizadorId),
+          autorizadorNombre: str(autorizadorUser?.nombre_completo || 'Administración'),
+          estado: str(solicitud.estado),
+          motivo: solicitud.respuesta_motivo || null,
+          tipoDescuento: str(solicitud.tipo_descuento),
+          valorDescuento: Number(solicitud.valor_descuento),
+          montoDescuento: Number(solicitud.monto_descuento),
+          eventoNombre: str(solicitud.evento_nombre || ''),
+          eventoCliente: str(solicitud.evento_cliente || ''),
+        });
+        // Notificar cambio de conteo para actualizar el badge de autorizaciones
+        io.emit('discount-auth:count-updated');
+      }
+
+      // Enviar Web Push al vendedor solicitante si tiene suscripción push activa
+      if (webpush && solicitanteUser) {
+        try {
+          const pushSubs = await conn.query(
+            "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE usuario_id = ?",
+            [str(solicitud.solicitante_id)]
+          );
+          if (pushSubs && pushSubs.length) {
+            const pushTitle = estado === 'aprobado' ? 'Descuento Autorizado' : 'Descuento No Autorizado';
+            const pushBody = estado === 'aprobado'
+              ? `El descuento para "${solicitud.evento_nombre || 'Evento'}" ha sido autorizado.`
+              : `El descuento para "${solicitud.evento_nombre || 'Evento'}" fue rechazado${solicitud.respuesta_motivo ? `: ${solicitud.respuesta_motivo}` : ''}.`;
+            const pushPayload = JSON.stringify({
+              title: pushTitle,
+              body: pushBody,
+              icon: '/icons/icon-192.png',
+              badge: '/icons/icon-72.png',
+              url: `/calendar?search=${encodeURIComponent(solicitud.evento_nombre || '')}`,
+              tag: `discount_auth_${solicitud.id}`,
+              requireInteraction: true
+            });
+            for (const subRow of pushSubs) {
+              try {
+                await webpush.sendNotification({
+                  endpoint: subRow.endpoint,
+                  keys: { p256dh: subRow.p256dh, auth: subRow.auth }
+                }, pushPayload);
+              } catch (pushErr) {
+                if (pushErr.statusCode === 410) {
+                  await conn.query("DELETE FROM push_subscriptions WHERE endpoint = ?", [subRow.endpoint]);
+                }
+              }
+            }
+          }
+        } catch (pushErr) {
+          console.warn('[DISCOUNT-AUTH] Advertencia enviando web push:', pushErr.message);
+        }
+      }
     }
     return res.json({ ok: true });
   } catch (error) {
@@ -8256,25 +8416,53 @@ app.post("/api/discount-auth/responder", async (req, res) => {
   }
 });
 
-// Obtener solicitudes pendientes para un usuario autorizador
-app.get("/api/discount-auth/pendientes", async (req, res) => {
+// Obtener conteo de solicitudes pendientes para autorizador
+app.get("/api/discount-auth/conteo-pendientes", async (req, res) => {
   const userId = req.query.userId;
-  if (!userId) return res.status(400).json({ message: "userId requerido" });
   let conn;
   try {
     conn = await pool.getConnection();
     const rows = await conn.query(
-      `SELECT * FROM solicitudes_autorizacion WHERE estado = 'pendiente' AND solicitante_id != ? ORDER BY fecha_solicitud DESC`,
-      [userId]
+      `SELECT COUNT(*) AS total FROM solicitudes_autorizacion WHERE estado = 'pendiente' ${userId ? 'AND solicitante_id != ?' : ''}`,
+      userId ? [userId] : []
     );
+    const count = Number(rows[0]?.total || 0);
+    return res.json({ count });
+  } catch (error) {
+    console.error('[DISCOUNT-AUTH] Error al obtener conteo:', error.message);
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Obtener solicitudes pendientes para un usuario autorizador
+app.get("/api/discount-auth/pendientes", async (req, res) => {
+  const userId = req.query.userId;
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const query = `
+      SELECT sa.*, 
+             COALESCE(u.nombre_completo, sa.solicitante_id) AS solicitante_nombre
+        FROM solicitudes_autorizacion sa
+        LEFT JOIN usuarios u ON u.id = sa.solicitante_id
+       WHERE sa.estado = 'pendiente'
+         ${userId ? 'AND sa.solicitante_id != ?' : ''}
+       ORDER BY sa.fecha_solicitud DESC
+    `;
+    const rows = await conn.query(query, userId ? [userId] : []);
     return res.json(rows.map(r => ({
       id: Number(r.id),
       eventoId: str(r.evento_id),
       cotizacionId: str(r.cotizacion_id),
       solicitanteId: str(r.solicitante_id),
+      solicitanteNombre: str(r.solicitante_nombre),
       tipoDescuento: str(r.tipo_descuento),
       valorDescuento: Number(r.valor_descuento),
       montoDescuento: Number(r.monto_descuento),
+      montoAnterior: Number(r.monto_anterior || 0),
+      editado: Boolean(r.editado),
       estado: str(r.estado),
       eventoNombre: str(r.evento_nombre),
       eventoCliente: str(r.evento_cliente),
@@ -8285,6 +8473,52 @@ app.get("/api/discount-auth/pendientes", async (req, res) => {
     })));
   } catch (error) {
     console.error('[DISCOUNT-AUTH] Error al obtener pendientes:', error.message);
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Obtener historial de solicitudes resueltas (aprobadas y rechazadas)
+app.get("/api/discount-auth/historial", async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const query = `
+      SELECT sa.*, 
+             COALESCE(u_sol.nombre_completo, sa.solicitante_id) AS solicitante_nombre,
+             COALESCE(u_aut.nombre_completo, sa.autorizador_id) AS autorizador_nombre
+        FROM solicitudes_autorizacion sa
+        LEFT JOIN usuarios u_sol ON u_sol.id = sa.solicitante_id
+        LEFT JOIN usuarios u_aut ON u_aut.id = sa.autorizador_id
+       WHERE sa.estado IN ('aprobado', 'rechazado')
+       ORDER BY sa.fecha_respuesta DESC, sa.fecha_solicitud DESC
+       LIMIT 100
+    `;
+    const rows = await conn.query(query);
+    return res.json(rows.map(r => ({
+      id: Number(r.id),
+      eventoId: str(r.evento_id),
+      cotizacionId: str(r.cotizacion_id),
+      solicitanteId: str(r.solicitante_id),
+      solicitanteNombre: str(r.solicitante_nombre),
+      autorizadorId: str(r.autorizador_id),
+      autorizadorNombre: str(r.autorizador_nombre),
+      tipoDescuento: str(r.tipo_descuento),
+      valorDescuento: Number(r.valor_descuento),
+      montoDescuento: Number(r.monto_descuento),
+      estado: str(r.estado),
+      eventoNombre: str(r.evento_nombre),
+      eventoCliente: str(r.evento_cliente),
+      eventoFecha: str(r.evento_fecha),
+      eventoSalon: str(r.evento_salon),
+      eventoTotal: Number(r.evento_total),
+      respuestaMotivo: r.respuesta_motivo || null,
+      fechaSolicitud: r.fecha_solicitud,
+      fechaRespuesta: r.fecha_respuesta,
+    })));
+  } catch (error) {
+    console.error('[DISCOUNT-AUTH] Error al obtener historial:', error.message);
     return res.status(500).json({ message: error.message });
   } finally {
     if (conn) conn.release();
@@ -8310,6 +8544,8 @@ app.get("/api/discount-auth/estado/:eventoId", async (req, res) => {
       tipoDescuento: str(r.tipo_descuento),
       valorDescuento: Number(r.valor_descuento),
       montoDescuento: Number(r.monto_descuento),
+      montoAnterior: Number(r.monto_anterior || 0),
+      editado: Boolean(r.editado),
       solicitanteId: str(r.solicitante_id),
       autorizadorId: str(r.autorizador_id),
       respuestaMotivo: r.respuesta_motivo || null,
