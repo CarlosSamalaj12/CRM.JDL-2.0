@@ -216,8 +216,9 @@ export default function ReportsProyeccionMetas({ onClose }) {
   const { events, users } = useOutletContext();
   const sellerUsers = useMemo(() => (users || []).filter(u => {
     const r = String(u.role || '').toLowerCase();
-    // Solo vendedores con meta habilitada
-    return (r === 'vendedor' || r === 'admin') && u.salesTargetEnabled === true;
+    const isActive = u.active !== false;
+    // Solo vendedores activos con meta habilitada
+    return r === 'vendedor' && isActive && u.salesTargetEnabled === true;
   }), [users]);
 
   const today = new Date();

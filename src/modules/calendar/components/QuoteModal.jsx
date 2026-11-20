@@ -3409,7 +3409,7 @@ export default function QuoteModal({ event: eventProp, eventData, slots = [], on
                   }}
                 >
                   {crmUsers.length > 0 ? (
-                    crmUsers.map(u => (
+                    crmUsers.filter(u => u.active !== false).map(u => (
                       <option key={u.id} value={u.id}>{u.name || u.fullName || u.email}</option>
                     ))
                   ) : (

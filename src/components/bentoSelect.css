@@ -1,0 +1,784 @@
+/* ==========================================================================
+   BENTO SELECT (STITCH MCP / APPLE / LINEAR EXECUTIVE DESIGN)
+   Pure light theme, zero dark inputs, razor-thin borders, diffused elevation
+   Multi-select support with high-legibility vendor and room cards
+   Immune to global style interference, squishing and background transposition
+   ========================================================================== */
+
+/* ── Container ── */
+.bento-sel-container {
+  position: relative;
+  width: 100%;
+}
+
+/* ── Trigger Bento Card ── */
+html body:not(.informes-theme) .bento-sel-trigger,
+body:not(.informes-theme) .bento-sel-trigger,
+.bento-sel-trigger {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 12px !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  user-select: none !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  outline: none !important;
+}
+
+.bento-sel-trigger:hover:not(.is-disabled) {
+  background: #ffffff !important;
+  border-color: #94a3b8 !important;
+  box-shadow: 0 3px 8px -1px rgba(15, 23, 42, 0.08) !important;
+}
+
+.bento-sel-trigger.is-open {
+  background: #ffffff !important;
+  border-color: #007A64 !important;
+  box-shadow: 0 0 0 3px rgba(0, 122, 100, 0.12) !important;
+}
+
+.bento-sel-trigger.is-disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
+.bento-sel-trigger-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* Icon / Avatar Mini */
+.bento-sel-icon-box {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.bento-sel-icon-box.room {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.bento-sel-icon-box.status {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.bento-sel-icon-box.default {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.bento-sel-icon-box.user {
+  border-radius: 50%;
+}
+
+/* Text Content in Trigger */
+.bento-sel-text-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  text-align: left;
+  flex: 1;
+}
+
+.bento-sel-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.bento-sel-label.is-subdued {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.bento-sel-trigger-multi-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Multi-select count pill in trigger */
+.bento-sel-multi-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1.5px 7px;
+  border-radius: 6px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Trigger Right */
+.bento-sel-trigger-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.bento-sel-tag-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.bento-sel-tag-badge.emerald {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.bento-sel-tag-badge.blue {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.bento-sel-tag-badge.cyan {
+  background: #ecfeff;
+  color: #0e7490;
+  border: 1px solid #a5f3fc;
+}
+
+.bento-sel-chevron {
+  color: #64748b;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bento-sel-chevron.rotate {
+  transform: rotate(180deg);
+  color: #007A64;
+}
+
+/* ── Popover Panel (Mounted in document.body via Portal) ── */
+html body:not(.informes-theme) .bento-sel-popover,
+body:not(.informes-theme) .bento-sel-popover,
+.bento-sel-popover {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.16), 0 8px 16px -4px rgba(15, 23, 42, 0.08) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+  color: #0f172a !important;
+  font-family: inherit !important;
+  isolation: isolate !important;
+  opacity: 1 !important;
+}
+
+.bento-sel-popover-inner {
+  display: flex !important;
+  flex-direction: column !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  height: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+/* Header & Search */
+.bento-sel-header {
+  padding: 10px 12px 8px !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 7px !important;
+  flex-shrink: 0 !important;
+}
+
+.bento-sel-search-wrap {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+.bento-sel-search-icon {
+  position: absolute !important;
+  left: 10px !important;
+  pointer-events: none !important;
+  color: #64748b !important;
+}
+
+html body:not(.informes-theme) .bento-sel-popover input.bento-sel-search-input,
+body:not(.informes-theme) .bento-sel-popover input.bento-sel-search-input,
+.bento-sel-popover input.bento-sel-search-input,
+input.bento-sel-search-input.search-input-naked {
+  width: 100% !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 44px 0 32px !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  color: #0f172a !important;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+}
+
+html body:not(.informes-theme) .bento-sel-popover input.bento-sel-search-input:focus,
+body:not(.informes-theme) .bento-sel-popover input.bento-sel-search-input:focus,
+.bento-sel-popover input.bento-sel-search-input:focus,
+input.bento-sel-search-input.search-input-naked:focus {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-color: #007A64 !important;
+  box-shadow: 0 0 0 3px rgba(0, 122, 100, 0.10) !important;
+  color: #0f172a !important;
+}
+
+.bento-sel-clear-btn {
+  position: absolute !important;
+  right: 8px !important;
+  background: transparent !important;
+  border: none !important;
+  color: #94a3b8 !important;
+  cursor: pointer !important;
+  font-size: 12px !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+}
+
+.bento-sel-clear-btn:hover {
+  color: #0f172a !important;
+  background: #f1f5f9 !important;
+}
+
+.bento-sel-shortcut-pill {
+  position: absolute !important;
+  right: 10px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  color: #64748b !important;
+  background: #f1f5f9 !important;
+  padding: 1.5px 5px !important;
+  border-radius: 4px !important;
+  pointer-events: none !important;
+  border: 1px solid #e2e8f0 !important;
+  line-height: 1 !important;
+}
+
+/* Subbarra Informativa */
+.bento-sel-subbar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 2px 2px !important;
+}
+
+.bento-sel-subbar-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.bento-sel-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background: #10b981 !important;
+}
+
+.bento-sel-title {
+  font-size: 9.5px !important;
+  font-weight: 800 !important;
+  color: #64748b !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+
+.bento-sel-count {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  padding: 1px 6px !important;
+  border-radius: 10px !important;
+}
+
+.bento-sel-selected-pill-small {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  border: 1px solid #a7f3d0 !important;
+  padding: 0.5px 6px !important;
+  border-radius: 10px !important;
+}
+
+.bento-sel-subbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+/* Acciones inline tipo link - NUNCA <button> para eludir reglas globales */
+.bento-sel-action-link {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #007A64 !important;
+  cursor: pointer !important;
+  padding: 2px 4px !important;
+  border-radius: 4px !important;
+  user-select: none !important;
+  transition: all 0.12s ease !important;
+  line-height: 1 !important;
+}
+
+.bento-sel-action-link:hover {
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+  text-decoration: underline !important;
+}
+
+.bento-sel-action-link.is-muted {
+  color: #64748b !important;
+  font-weight: 600 !important;
+}
+
+.bento-sel-action-link.is-muted:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.bento-sel-action-sep {
+  color: #cbd5e1 !important;
+  font-size: 11px !important;
+  user-select: none !important;
+}
+
+.bento-sel-tag {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  color: #007A64 !important;
+  background: #ecfdf5 !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+}
+
+/* ── Options Scroll Area ── */
+.bento-sel-scroll {
+  padding: 6px 8px !important;
+  overflow-y: auto !important;
+  max-height: 280px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  flex: 1 1 auto !important;
+  box-sizing: border-box !important;
+}
+
+.bento-sel-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.bento-sel-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+/* ── Option Row (div role="option" inmune a estilos de botones globales) ── */
+.bento-sel-item {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  padding: 8px 10px !important;
+  border-radius: 10px !important;
+  border: 1px solid transparent !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  transition: all 0.12s ease !important;
+  font-family: inherit !important;
+  box-sizing: border-box !important;
+  min-height: 50px !important;
+  flex-shrink: 0 !important;
+  user-select: none !important;
+}
+
+.bento-sel-item:hover {
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+.bento-sel-item.is-selected {
+  background: #f0fdf4 !important;
+  background-color: #f0fdf4 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.bento-sel-item.all-option {
+  border-bottom: 1px dashed #e2e8f0 !important;
+  border-radius: 10px !important;
+  padding-bottom: 8px !important;
+  margin-bottom: 2px !important;
+}
+
+.bento-sel-item-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+  flex: 1 !important;
+}
+
+/* Multi-select custom checkbox (Stitch MCP) */
+.bento-sel-checkbox {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 5px !important;
+  border: 1.5px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+}
+
+.bento-sel-checkbox.checked {
+  background: #007A64 !important;
+  border-color: #007A64 !important;
+  color: #ffffff !important;
+}
+
+/* Avatar Wrapper with online dot */
+.bento-sel-avatar-wrapper {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.bento-sel-avatar-dot {
+  position: absolute !important;
+  bottom: -1px !important;
+  right: -1px !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #10b981 !important;
+  border: 1.5px solid #ffffff !important;
+}
+
+.bento-sel-item-icon-box {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  box-sizing: border-box !important;
+}
+
+.bento-sel-item-icon-box.all {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  border: 1px dashed #cbd5e1 !important;
+}
+
+.bento-sel-item-icon-box.room {
+  background: #ecfdf5 !important;
+  color: #059669 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+
+.bento-sel-item-icon-box.user {
+  border-radius: 50% !important;
+}
+
+.bento-sel-item-text {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+  flex: 1 !important;
+}
+
+/* Nombre completo visible sin recorte agresivo */
+.bento-sel-item-name {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  line-height: 1.35 !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+.bento-sel-item.is-selected .bento-sel-item-name {
+  color: #065f46 !important;
+  font-weight: 700 !important;
+}
+
+.bento-sel-item-meta-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  font-size: 11px !important;
+  color: #64748b !important;
+  min-width: 0 !important;
+}
+
+.bento-sel-item-desc {
+  font-size: 11px !important;
+  color: #64748b !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 200px !important;
+}
+
+.bento-sel-item-right {
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  margin-left: 6px !important;
+}
+
+.bento-sel-selected-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  background: #007A64 !important;
+  color: #ffffff !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 2px 7px !important;
+  border-radius: 9999px !important;
+  white-space: nowrap !important;
+}
+
+.bento-sel-hover-select {
+  display: none;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #007A64 !important;
+  white-space: nowrap !important;
+}
+
+.bento-sel-item:hover:not(.is-selected) .bento-sel-hover-select {
+  display: inline-block;
+}
+
+.bento-sel-check-mark {
+  color: #059669 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.bento-sel-divider {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 6px 4px 3px !important;
+}
+
+.bento-sel-divider span {
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  color: #94a3b8 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+
+.bento-sel-divider::after {
+  content: '' !important;
+  flex: 1 !important;
+  height: 1px !important;
+  background: #f1f5f9 !important;
+}
+
+.bento-sel-empty {
+  padding: 20px 10px !important;
+  text-align: center !important;
+  color: #94a3b8 !important;
+  font-size: 12px !important;
+}
+
+/* ── Multi-select Unified Bottom Action Bar (Stitch MCP) ── */
+.bento-sel-bottom-bar {
+  padding: 10px 14px !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-top: 1px solid #f1f5f9 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.bento-sel-bottom-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+}
+
+.bento-sel-selected-counter {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  color: #334155 !important;
+  white-space: nowrap !important;
+}
+
+.bento-sel-dot-sep {
+  color: #cbd5e1 !important;
+  font-size: 12px !important;
+  user-select: none !important;
+}
+
+.bento-sel-link-clear {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  color: #007A64 !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: color 0.15s ease !important;
+}
+
+.bento-sel-link-clear:hover {
+  color: #065f46 !important;
+  text-decoration: underline !important;
+}
+
+.bento-sel-bottom-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.bento-sel-esc-hint {
+  font-size: 10.5px !important;
+  color: #94a3b8 !important;
+  font-weight: 500 !important;
+  user-select: none !important;
+}
+
+html body:not(.informes-theme) .bento-sel-popover button.bento-sel-btn-apply,
+body:not(.informes-theme) .bento-sel-popover button.bento-sel-btn-apply,
+.bento-sel-popover button.bento-sel-btn-apply {
+  background: #007A64 !important;
+  background-color: #007A64 !important;
+  background-image: linear-gradient(135deg, #007A64 0%, #059669 100%) !important;
+  border: 1px solid #007A64 !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 0 14px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 2px 6px rgba(0, 122, 100, 0.25) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  line-height: 1 !important;
+}
+
+html body:not(.informes-theme) .bento-sel-popover button.bento-sel-btn-apply:hover,
+body:not(.informes-theme) .bento-sel-popover button.bento-sel-btn-apply:hover,
+.bento-sel-popover button.bento-sel-btn-apply:hover {
+  background: #059669 !important;
+  background-color: #059669 !important;
+  border-color: #059669 !important;
+  box-shadow: 0 4px 10px rgba(0, 122, 100, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+
+.bento-sel-badge-apply {
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  padding: 1px 5px !important;
+  border-radius: 999px !important;
+  line-height: 1 !important;
+}
+
+/* Single-select bottom info note */
+.bento-sel-footer {
+  padding: 6px 12px !important;
+  background: #f8fafc !important;
+  border-top: 1px solid #f1f5f9 !important;
+  font-size: 10.5px !important;
+  color: #64748b !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+}

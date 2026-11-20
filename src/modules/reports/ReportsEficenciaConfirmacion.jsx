@@ -106,7 +106,8 @@ export default function ReportsEficenciaConfirmacion({ onClose }) {
   const { events, users } = useOutletContext();
   const sellerUsers = useMemo(() => (users || []).filter(u => {
     const r = String(u.role || '').toLowerCase();
-    return r === 'vendedor' || r === 'admin';
+    const isActive = u.active !== false;
+    return r === 'vendedor' && isActive;
   }).sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '')), [users]);
 
   const today = new Date();

@@ -1121,7 +1121,8 @@ export default function PosiblesVentasModule() {
     return (users || [])
       .filter(u => {
         const r = String(u.role || '').trim().toLowerCase();
-        return r === 'vendedor' || r === 'admin';
+        const isActive = u.active !== false;
+        return r === 'vendedor' && isActive;
       })
       .sort((a, b) => {
         const nameA = (a.fullName || a.name || a.nombre || '').trim();

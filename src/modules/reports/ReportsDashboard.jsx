@@ -263,7 +263,11 @@ export default function ReportsDashboard({ onClose }) {
     return () => { isCancelled = true; };
   }, [getDateRange]);
 
-  const filteredUsers = useMemo(() => (users||[]).filter(u => String(u.role||'').toLowerCase() === (role === USER_ROLES.SELLER ? 'vendedor' : 'recepcionista')), [users, role]);
+  const filteredUsers = useMemo(() => (users||[]).filter(u => {
+    const isActive = u.active !== false;
+    const targetRole = role === USER_ROLES.SELLER ? 'vendedor' : 'recepcionista';
+    return String(u.role||'').toLowerCase() === targetRole && isActive;
+  }), [users, role]);
 
   const dashboardRows = useMemo(() => {
     if (!events) return [];

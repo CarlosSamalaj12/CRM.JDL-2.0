@@ -41,6 +41,7 @@ import { loadState } from '../../services/stateService';
 import socketService from '../../services/socketService';
 import authService from '../../services/authService';
 import { toast } from '../../utils/toast';
+import BentoSelect from '../../components/BentoSelect';
 import HabitacionModal from './HabitacionModal';
 import HabitacionContactModal from './HabitacionContactModal';
 import HabitacionCampanaModal from './HabitacionCampanaModal';
@@ -276,7 +277,8 @@ export default function HabitacionesModule() {
 
       const users = (stateData?.users || []).filter(u => {
         const r = String(u.role || '').toLowerCase();
-        return r === 'vendedor' || r === 'admin' || r === 'recepcionista';
+        const isActive = u.active !== false;
+        return (r === 'vendedor' || r === 'recepcionista') && isActive;
       });
       setSellers(users);
       setCompanies(stateData?.companies || []);
@@ -858,51 +860,69 @@ export default function HabitacionesModule() {
           {/* Vendedor */}
           <div className="hab-filter-item">
             <label className="hab-filter-label">Vendedor</label>
-            <select
-              className="hab-select"
+            <BentoSelect
               value={filterVendedor}
-              onChange={e => setFilterVendedor(e.target.value)}
-              style={{ height: 38, fontSize: 13, fontWeight: 600 }}
-            >
-              <option value="">Todos los Vendedores</option>
-              {sellers.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+              onChange={val => setFilterVendedor(val)}
+              options={sellers.map(s => ({
+                value: String(s.id),
+                label: s.fullName || s.name || s.nombre || 'Vendedor',
+                role: s.role || s.rol || 'vendedor',
+                sublabel: s.email || '',
+                active: s.active !== false
+              }))}
+              placeholder="Todos los Vendedores"
+              allSublabel="Todo el personal y vendedores"
+              searchPlaceholder="Buscar vendedor activo..."
+              headerTitle="VENDEDORES ACTIVOS"
+              kind="user"
+              minWidth={200}
+              footerText="Usuarios con acceso comercial y operativo"
+            />
           </div>
 
           {/* Tipo de Habitación */}
           <div className="hab-filter-item">
             <label className="hab-filter-label">Tipo de Habitación</label>
-            <select
-              className="hab-select"
+            <BentoSelect
               value={filterTipoHab}
-              onChange={e => setFilterTipoHab(e.target.value)}
-              style={{ height: 38, fontSize: 13, fontWeight: 600 }}
-            >
-              <option value="">Todos los Tipos</option>
-              {(catalogos.tiposHabitacion || []).map(th => (
-                <option key={th.id} value={th.id}>{th.nombre}</option>
-              ))}
-            </select>
+              onChange={val => setFilterTipoHab(val)}
+              options={(catalogos.tiposHabitacion || []).map(th => ({
+                value: String(th.id),
+                label: th.nombre || 'Habitación',
+                badge: th.capacidad ? `${th.capacidad} pax` : (th.codigo || 'Habitación'),
+                sublabel: th.descripcion || ''
+              }))}
+              placeholder="Todos los Tipos"
+              allSublabel="Todas las categorías de habitación"
+              searchPlaceholder="Buscar tipo de habitación..."
+              headerTitle="TIPOS DE HABITACIÓN"
+              kind="room"
+              minWidth={210}
+              footerText="Catálogo activo del hotel"
+            />
           </div>
 
           {/* Estado de Reserva */}
           <div className="hab-filter-item">
             <label className="hab-filter-label">Estado de Reserva</label>
-            <select
-              className="hab-select"
+            <BentoSelect
               value={filterEstado}
-              onChange={e => setFilterEstado(e.target.value)}
-              style={{ height: 38, fontSize: 13, fontWeight: 600 }}
-            >
-              <option value="">Todos los Estados</option>
-              <option value="Confirmada">Confirmada</option>
-              <option value="En Casa">En Casa (Check-in)</option>
-              <option value="Completada">Completada (Check-out)</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="Cancelada">Cancelada</option>
-            </select>
+              onChange={val => setFilterEstado(val)}
+              options={[
+                { value: 'Confirmada', label: 'Confirmada', color: '#10b981' },
+                { value: 'En Casa', label: 'En Casa (Check-in)', color: '#06b6d4' },
+                { value: 'Completada', label: 'Completada (Check-out)', color: '#8b5cf6' },
+                { value: 'Pendiente', label: 'Pendiente', color: '#f59e0b' },
+                { value: 'Cancelada', label: 'Cancelada', color: '#ef4444' }
+              ]}
+              placeholder="Todos los Estados"
+              allSublabel="Cualquier estado operativo"
+              searchPlaceholder="Buscar estado..."
+              headerTitle="ESTADOS DE RESERVA"
+              kind="status"
+              minWidth={190}
+              footerText="Filtrado en tiempo real"
+            />
           </div>
 
           {/* Botón Filtros Avanzados */}

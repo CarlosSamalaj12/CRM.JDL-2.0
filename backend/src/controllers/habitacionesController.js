@@ -73,20 +73,29 @@ export async function getHabitaciones(req, res) {
     }
 
     if (vendedor) {
-      let sellerName = null;
-      try {
-        const [userRows] = await conn.query('SELECT nombre, nombre_completo FROM usuarios WHERE id = ?', [vendedor]);
-        if (userRows && userRows.length > 0) {
-          sellerName = userRows[0].nombre_completo || userRows[0].nombre;
-        }
-      } catch (_) {}
+      const rawSellers = String(vendedor).split(',').map(s => s.trim()).filter(Boolean);
+      if (rawSellers.length > 0) {
+        const sellerParts = [];
+        for (const sVal of rawSellers) {
+          let sellerName = null;
+          try {
+            const [userRows] = await conn.query('SELECT nombre, nombre_completo FROM usuarios WHERE id = ?', [sVal]);
+            if (userRows && userRows.length > 0) {
+              sellerName = userRows[0].nombre_completo || userRows[0].nombre;
+            }
+          } catch (_) {}
 
-      if (sellerName) {
-        conditions.push('(id_vendedor = ? OR vendedor_nombre = ? OR vendedor_nombre LIKE ?)');
-        params.push(vendedor, sellerName, `%${sellerName}%`);
-      } else {
-        conditions.push('(id_vendedor = ? OR vendedor_nombre LIKE ?)');
-        params.push(vendedor, `%${vendedor}%`);
+          if (sellerName) {
+            sellerParts.push('(id_vendedor = ? OR vendedor_nombre = ? OR vendedor_nombre LIKE ?)');
+            params.push(sVal, sellerName, `%${sellerName}%`);
+          } else {
+            sellerParts.push('(id_vendedor = ? OR vendedor_nombre LIKE ?)');
+            params.push(sVal, `%${sVal}%`);
+          }
+        }
+        if (sellerParts.length > 0) {
+          conditions.push(`(${sellerParts.join(' OR ')})`);
+        }
       }
     }
 
@@ -96,8 +105,15 @@ export async function getHabitaciones(req, res) {
     }
 
     if (tipo_habitacion) {
-      conditions.push('id_tipo_habitacion = ?');
-      params.push(tipo_habitacion);
+      const rawTypes = String(tipo_habitacion).split(',').map(s => s.trim()).filter(Boolean);
+      if (rawTypes.length === 1) {
+        conditions.push('id_tipo_habitacion = ?');
+        params.push(rawTypes[0]);
+      } else if (rawTypes.length > 1) {
+        const placeholders = rawTypes.map(() => '?').join(',');
+        conditions.push(`id_tipo_habitacion IN (${placeholders})`);
+        params.push(...rawTypes);
+      }
     }
 
     if (search) {

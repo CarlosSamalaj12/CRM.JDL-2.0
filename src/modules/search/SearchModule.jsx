@@ -357,11 +357,12 @@ export default function SearchModule() {
     return counts;
   }, [processedEvents]);
 
-  // Vendedores disponibles
+  // Vendedores disponibles (Solo activos)
   const sellerUsers = useMemo(() => {
     return (users || []).filter(u => {
       const r = String(u.role || '').toLowerCase();
-      return r === 'vendedor' || r === 'admin' || r === 'gerente';
+      const isActive = u.active !== false;
+      return r === 'vendedor' && isActive;
     });
   }, [users]);
 

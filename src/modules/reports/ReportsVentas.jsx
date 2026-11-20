@@ -270,7 +270,8 @@ export default function ReportsVentas({ onClose }) {
   // Lista de vendedores activos
   const sellerUsers = useMemo(() => (users || []).filter(u => {
     const r = String(u.role || u.rol || '').toLowerCase();
-    return r === 'vendedor' || r === 'admin';
+    const isActive = u.active !== false;
+    return r === 'vendedor' && isActive;
   }).sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '')), [users]);
 
   // Estados de filtros (Multi-selección para Vendedores, Salones y Estados)

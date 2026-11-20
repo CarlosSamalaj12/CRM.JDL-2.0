@@ -44,6 +44,7 @@ import {
   UploadCloud,
   AlertTriangle,
 } from 'lucide-react';
+import BentoSelect from '../../components/BentoSelect';
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(amount || 0);
@@ -1844,21 +1845,23 @@ export default function ReportsContabilidad({ onClose }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b' }}>Filtrar vista ejecutiva:</span>
-          <select
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '220px' }}>
+          <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>Filtrar vista ejecutiva:</span>
+          <BentoSelect
             value={sellerFilter}
-            onChange={e => { setSellerFilter(e.target.value); setCurrentPage(1); }}
-            style={{
-              background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px',
-              padding: '6px 12px', fontSize: '12px', fontWeight: 600, color: '#0f172a'
-            }}
-          >
-            <option value="">Todos los vendedores</option>
-            {uniqueSellers.map(u => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
+            onChange={val => { setSellerFilter(val); setCurrentPage(1); }}
+            options={uniqueSellers.map(u => ({
+              value: String(u.id),
+              label: u.name,
+              role: 'vendedor'
+            }))}
+            placeholder="Todos los vendedores"
+            allSublabel="Mostrar todos los vendedores"
+            searchPlaceholder="Buscar vendedor..."
+            headerTitle="VENDEDORES"
+            kind="user"
+            minWidth={200}
+          />
         </div>
       </div>
 
@@ -2098,17 +2101,23 @@ export default function ReportsContabilidad({ onClose }) {
             />
           </div>
 
-          <div className="acct-filter-group">
+          <div className="acct-filter-group" style={{ minWidth: '200px' }}>
             <label>Vendedor</label>
-            <select
+            <BentoSelect
               value={sellerFilter}
-              onChange={e => { setSellerFilter(e.target.value); setCurrentPage(1); }}
-            >
-              <option value="">Todos los vendedores</option>
-              {uniqueSellers.map(u => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
+              onChange={val => { setSellerFilter(val); setCurrentPage(1); }}
+              options={uniqueSellers.map(u => ({
+                value: String(u.id),
+                label: u.name,
+                role: 'vendedor'
+              }))}
+              placeholder="Todos los vendedores"
+              allSublabel="Mostrar cartera de todo el equipo"
+              searchPlaceholder="Buscar vendedor..."
+              headerTitle="VENDEDORES"
+              kind="user"
+              minWidth={190}
+            />
           </div>
 
           <div className="acct-filter-group">

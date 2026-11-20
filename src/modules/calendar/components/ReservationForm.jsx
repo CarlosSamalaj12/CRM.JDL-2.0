@@ -19,6 +19,7 @@ import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 import TimeSelect from '../../../components/TimeSelect';
 import LoadingSpinner from '../../../components/LoadingSpinner';
+import SellerSelector from './SellerSelector';
 import './reservationMobile.css';
 import './reservationBento.css';
 
@@ -478,7 +479,18 @@ export default function ReservationForm() {
 
   const getCurrentUserId = () => {
     const currentUser = authService.getCurrentUser();
-    return currentUser?.id || '';
+    if (currentUser) {
+      const role = String(currentUser.role || '').toLowerCase();
+      const isAllowed = role === 'vendedor' || role === 'admin';
+      const isActive = currentUser.active !== false;
+      if (isAllowed && isActive) return currentUser.id;
+    }
+    const firstActiveSeller = (users || []).find(u => {
+      const role = String(u.role || u.rol || '').trim().toLowerCase();
+      const isActive = u.active !== false;
+      return (role === 'vendedor' || role === 'admin') && isActive;
+    });
+    return firstActiveSeller?.id || '';
   };
 
   const [formData, setFormData] = useState(() => ({
@@ -1934,19 +1946,12 @@ export default function ReservationForm() {
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     Vendedor:
                   </span>
-                  <select
-                    name="userId"
+                  <SellerSelector
                     value={formData.userId}
                     onChange={handleChange}
-                    className="res-mobile-seller-select"
-                  >
-                    <option value="">-- Sin Encargado --</option>
-                    {users?.map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName || u.name}
-                      </option>
-                    ))}
-                  </select>
+                    users={users}
+                    isMobile={true}
+                  />
                 </div>
               </div>
             </div>
@@ -3079,43 +3084,19 @@ export default function ReservationForm() {
                 {/* 3. Usuario Responsable */}
                 <div className="res-bento-card">
                   <div className="res-bento-card-header">
-                    <span className="res-bento-card-title">Usuario Responsable *</span>
-                  </div>
-                  <div className="res-bento-user-card">
-                    <div className="res-bento-user-info-left">
-                      <div className="res-bento-user-avatar">
-                        {getUserInitials(assignedUser?.fullName || assignedUser?.name)}
-                      </div>
-                      <div className="res-bento-user-text">
-                        <select
-                          name="userId"
-                          value={formData.userId || ''}
-                          onChange={handleChange}
-                          className="res-bento-user-select"
-                        >
-                          <option value="">-- Sin Encargado --</option>
-                          {users?.map(u => (
-                            <option key={u.id} value={u.id}>
-                              {u.fullName || u.name}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="res-bento-user-role">
-                          <span>{assignedUser?.role || 'Coordinador de Eventos'}</span>
-                          <span>·</span>
-                          <span className="res-bento-online-dot" />
-                          <span style={{ color: '#059669' }}>En línea</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ color: '#059669', flexShrink: 0 }} title="Verificado y Asignado">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <div className="res-bento-card-title-group">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#007A64" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                         <polyline points="9 12 11 14 15 10" />
                       </svg>
+                      <span className="res-bento-card-title">Usuario Responsable *</span>
                     </div>
                   </div>
+                  <SellerSelector
+                    value={formData.userId}
+                    onChange={handleChange}
+                    users={users}
+                  />
                 </div>
 
                 {/* 4. Notas y Requerimientos */}

@@ -18,6 +18,7 @@ import {
 import { getHabitacionesApi, getCatalogosHabitacionesApi } from '../../services/habitacionesService';
 import { loadState } from '../../services/stateService';
 import { toast } from '../../utils/toast';
+import BentoSelect from '../../components/BentoSelect';
 import './reports.css';
 
 export default function ReportsVentasHabitaciones({ onClose }) {
@@ -122,7 +123,7 @@ export default function ReportsVentasHabitaciones({ onClose }) {
 
       const users = (stateData?.users || []).filter(u => {
         const r = String(u.role || '').toLowerCase();
-        return r === 'vendedor' || r === 'admin' || r === 'recepcionista';
+        return (r === 'vendedor' || r === 'admin' || r === 'recepcionista') && u.active !== false;
       });
       setSellers(users);
     } catch (err) {
@@ -218,12 +219,20 @@ export default function ReportsVentasHabitaciones({ onClose }) {
         filterSegments.push(`Rango: ${formatDateDisplay(fechaInicio) || 'Inicio'} al ${formatDateDisplay(fechaFin) || 'Fin'}`);
       }
       if (vendedorFilter) {
-        const selObj = sellers.find(s => String(s.id) === String(vendedorFilter));
-        filterSegments.push(`Vendedor: ${selObj?.name || vendedorFilter}`);
+        const vIds = String(vendedorFilter).split(',').map(s => s.trim()).filter(Boolean);
+        const names = vIds.map(id => {
+          const selObj = sellers.find(s => String(s.id) === String(id));
+          return selObj ? (selObj.fullName || selObj.name || selObj.nombre) : id;
+        });
+        filterSegments.push(`Vendedor(es): ${names.join(', ')}`);
       }
       if (tipoHabFilter) {
-        const thObj = tiposHab.find(t => String(t.id) === String(tipoHabFilter));
-        filterSegments.push(`Tipo Habitación: ${thObj?.nombre || tipoHabFilter}`);
+        const tIds = String(tipoHabFilter).split(',').map(s => s.trim()).filter(Boolean);
+        const names = tIds.map(id => {
+          const thObj = tiposHab.find(t => String(t.id) === String(id));
+          return thObj ? thObj.nombre : id;
+        });
+        filterSegments.push(`Tipo(s) Habitación: ${names.join(', ')}`);
       }
       if (search.trim()) filterSegments.push(`Búsqueda: "${search.trim()}"`);
 
@@ -662,37 +671,54 @@ export default function ReportsVentasHabitaciones({ onClose }) {
         {/* Columna 3: Vendedor */}
         <div className="rhab-filter-group">
           <label className="rhab-filter-label">Vendedor</label>
-          <select
-            className="rhab-select"
+          <BentoSelect
+            isMulti={true}
             value={vendedorFilter}
-            onChange={e => {
-              setVendedorFilter(e.target.value);
+            onChange={val => {
+              setVendedorFilter(val);
               setCurrentPage(1);
             }}
-          >
-            <option value="">Todos los Vendedores</option>
-            {sellers.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+            options={sellers.map(s => ({
+              value: String(s.id),
+              label: s.fullName || s.name || s.nombre || 'Vendedor',
+              role: s.role || s.rol || 'vendedor',
+              sublabel: s.email || '',
+              active: s.active !== false
+            }))}
+            placeholder="Todos los Vendedores"
+            allSublabel="Ventas de todo el equipo comercial y recepción"
+            searchPlaceholder="Buscar vendedor o admin..."
+            headerTitle="EQUIPO COMERCIAL"
+            kind="user"
+            popoverWidth={380}
+            footerText="Puedes seleccionar uno o varios vendedores para comparar su rendimiento"
+          />
         </div>
 
         {/* Columna 4: Tipo de Habitación */}
         <div className="rhab-filter-group">
           <label className="rhab-filter-label">Tipo de Habitación</label>
-          <select
-            className="rhab-select"
+          <BentoSelect
+            isMulti={true}
             value={tipoHabFilter}
-            onChange={e => {
-              setTipoHabFilter(e.target.value);
+            onChange={val => {
+              setTipoHabFilter(val);
               setCurrentPage(1);
             }}
-          >
-            <option value="">Todos los Tipos de Habitación</option>
-            {tiposHab.map(th => (
-              <option key={th.id} value={th.id}>{th.nombre}</option>
-            ))}
-          </select>
+            options={tiposHab.map(th => ({
+              value: String(th.id),
+              label: th.nombre || th.name || 'Habitación',
+              badge: th.capacidad ? `${th.capacidad} pax` : (th.codigo || 'Categoría'),
+              sublabel: th.descripcion || (th.precio_base ? `Tarifa base: Q ${th.precio_base}` : '')
+            }))}
+            placeholder="Todos los Tipos de Habitación"
+            allSublabel="Todas las categorías de habitación del hotel"
+            searchPlaceholder="Buscar tipo de habitación..."
+            headerTitle="CATEGORÍAS DE HABITACIÓN"
+            kind="room"
+            popoverWidth={380}
+            footerText="Puedes seleccionar varias categorías para el análisis comparativo"
+          />
         </div>
 
         {/* Columna 5: Búsqueda Rápida */}

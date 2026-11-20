@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import ReportInfo from './components/ReportInfo';
+import BentoSelect from '../../components/BentoSelect';
 import { getQuoteTotalGtq } from './components/eventSeriesUtils';
 
 // ── Minimalist Vector Icons ──
@@ -410,20 +411,29 @@ export default function ReportsSeguimientosPendientes({ onClose }) {
               <span>Mes</span>
               <input type="month" value={monthKey} onChange={e => handleMonthChange(e.target.value)} />
             </label>
-            <label className="field" style={{ flex: '0 0 220px', marginBottom: 0 }}>
-              <span>Vendedor</span>
-              <select value={userIdFilter || ''} onChange={e => setUserIdFilter(e.target.value || null)}>
-                <option value="">Todos los vendedores</option>
-                {allVendors.map(v => {
+            <div style={{ flex: '0 0 240px', minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>Vendedor</span>
+              <BentoSelect
+                value={userIdFilter || ''}
+                onChange={val => setUserIdFilter(val || null)}
+                options={allVendors.map(v => {
                   const pendingCount = userData.find(u => u.userId === String(v.id))?.total || 0;
-                  return (
-                    <option key={v.id} value={String(v.id)}>
-                      {(v.fullName || v.name)}{pendingCount > 0 ? ` (${pendingCount})` : ''}
-                    </option>
-                  );
+                  return {
+                    value: String(v.id),
+                    label: v.fullName || v.name,
+                    badge: pendingCount > 0 ? `${pendingCount} pend.` : undefined,
+                    role: v.role || 'vendedor',
+                    active: v.active !== false
+                  };
                 })}
-              </select>
-            </label>
+                placeholder="Todos los vendedores"
+                allSublabel="Seguimientos de todo el equipo"
+                searchPlaceholder="Buscar vendedor..."
+                headerTitle="VENDEDORES"
+                kind="user"
+                minWidth={220}
+              />
+            </div>
           </div>
         </section>
 

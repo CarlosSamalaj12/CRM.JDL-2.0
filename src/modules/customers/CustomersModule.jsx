@@ -574,7 +574,8 @@ export default function CustomersModule() {
     return (users || [])
       .filter(u => {
         const role = String(u.role || u.rol || '').trim().toLowerCase();
-        return role === 'vendedor';
+        const isActive = u.active !== false;
+        return role === 'vendedor' && isActive;
       })
       .sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || ''));
   }, [users]);
