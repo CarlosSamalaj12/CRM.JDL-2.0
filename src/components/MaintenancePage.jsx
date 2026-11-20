@@ -177,15 +177,19 @@ export default function MaintenancePage({ onBypassSuccess }) {
       <header className="maint-top-bar">
         <div className="maint-brand">
           <div className="maint-logo-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f8fafc" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
-              <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
-              <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
-            </svg>
+            <img 
+              src="/Oficial_JDL_blanco.png" 
+              alt="Logo Jardines del Lago" 
+              className="maint-logo-img"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = '/icons/icon-192.png';
+              }}
+            />
           </div>
           <div className="maint-brand-text">
             <span className="maint-brand-name">Jardines del Lago</span>
-            <span className="maint-brand-sub">Hotel &amp; Resort Lake View</span>
+            <span className="maint-brand-sub">Hotel y Centro de Convenciones</span>
           </div>
         </div>
 
@@ -415,7 +419,7 @@ export default function MaintenancePage({ onBypassSuccess }) {
         </button>
 
         <p className="maint-copyright">
-          &copy; 2026 Jardines del Lago Hotel &amp; Resort. Todos los derechos reservados.
+          &copy; {new Date().getFullYear()} Jardines del Lago Hotel y Centro de Convenciones. Todos los derechos reservados.
         </p>
       </footer>
 
