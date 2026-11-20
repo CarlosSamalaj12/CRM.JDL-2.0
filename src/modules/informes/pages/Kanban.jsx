@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
-import { fetchEvents, fetchEventById, fetchWeeklyServices, getTareasSemanaMerged } from '../services/api.js';
+import { fetchEvents, fetchEventById, fetchWeeklyServices, getTareasSemanaMerged, getTareaSemanalById } from '../services/api.js';
 import EventCard from '../components/EventCard.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useDataSyncMulti } from '../../../hooks/useDataSync.js';
@@ -359,6 +359,7 @@ export default function Kanban() {
   const [weeklyTasks, setWeeklyTasks] = useState([]);
   const [taskCounts, setTaskCounts] = useState({});
   const [targetEventId, setTargetEventId] = useState(null);
+  const [highlightTareaId, setHighlightTareaId] = useState(() => searchParams.get('highlightTarea') || null);
 
   const toggleRow = (id) => {
     setExpandedRows(prev => {
@@ -416,40 +417,54 @@ export default function Kanban() {
     localStorage.setItem('kanban_mobileDayIndex', String(mobileDayIndex));
   }, [mobileDayIndex]);
 
-  // Efecto para resaltar evento desde notificación
+  // Efecto para resaltar evento o tarea desde notificación
   useEffect(() => {
     const highlightEventoId = searchParams.get('highlightEvento');
-    if (!highlightEventoId) return;
+    const paramHighlightTarea = searchParams.get('highlightTarea');
+    const fechaParam = searchParams.get('fecha');
+
+    if (!highlightEventoId && !paramHighlightTarea && !fechaParam) return;
     
     let scrollTimer;
     let clearTimer;
 
     const handleHighlight = async () => {
-      // Buscar el evento en la lista actual
-      const evento = events.find(e => String(e.Idocupacion) === String(highlightEventoId));
-      
-      let fechaEvento = null;
-      if (evento) {
-        fechaEvento = (evento.FechaEvento || evento.displayDate || '').slice(0, 10);
-      } else {
-        // Si el evento no está en la semana actual, obtener su fecha llamando a la API
+      let targetDate = fechaParam || null;
+
+      if (!targetDate && paramHighlightTarea) {
         try {
-          const eventData = await fetchEventById(highlightEventoId);
-          if (eventData && (eventData.FechaEvento || eventData.fecha)) {
-            fechaEvento = String(eventData.FechaEvento || eventData.fecha || '').slice(0, 10);
+          const t = await getTareaSemanalById(paramHighlightTarea);
+          if (t?.fecha_tarea) {
+            targetDate = String(t.fecha_tarea).slice(0, 10);
           }
-        } catch {
-          // No se pudo obtener el evento
+        } catch {}
+      }
+
+      if (paramHighlightTarea) {
+        setHighlightTareaId(paramHighlightTarea);
+      }
+
+      if (highlightEventoId) {
+        const evento = events.find(e => String(e.Idocupacion) === String(highlightEventoId));
+        if (evento && !targetDate) {
+          targetDate = (evento.FechaEvento || evento.displayDate || '').slice(0, 10);
+        } else if (!targetDate) {
+          try {
+            const eventData = await fetchEventById(highlightEventoId);
+            if (eventData && (eventData.FechaEvento || eventData.fecha)) {
+              targetDate = String(eventData.FechaEvento || eventData.fecha || '').slice(0, 10);
+            }
+          } catch {}
         }
+        setEventoResaltado(highlightEventoId);
       }
       
-      if (fechaEvento) {
-        setEventoResaltado(highlightEventoId);
-        setSelectedDate(fechaEvento);
+      if (targetDate) {
+        setSelectedDate(targetDate);
 
         // Sincronizar automáticamente el carrusel de días móviles al día correspondiente
         try {
-          const d = new Date(fechaEvento + 'T12:00:00');
+          const d = new Date(targetDate + 'T12:00:00');
           const day = d.getDay();
           const dayIdx = day === 0 ? 6 : day - 1;
           setMobileDayIndex(dayIdx);
@@ -457,13 +472,14 @@ export default function Kanban() {
           console.warn('[Kanban] Error al calcular el index móvil del día:', err);
         }
         
-        // Hacer scroll al evento después de un breve delay
-        scrollTimer = setTimeout(() => {
-          const elemento = document.getElementById(`evento-${highlightEventoId}`);
-          if (elemento) {
-            elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }, 500);
+        if (highlightEventoId) {
+          scrollTimer = setTimeout(() => {
+            const elemento = document.getElementById(`evento-${highlightEventoId}`);
+            if (elemento) {
+              elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 500);
+        }
       }
       
       // Quitar el resaltado después de 5 segundos y limpiar parámetros
@@ -471,6 +487,8 @@ export default function Kanban() {
         setEventoResaltado(null);
         const newParams = new URLSearchParams(searchParams);
         newParams.delete('highlightEvento');
+        newParams.delete('highlightTarea');
+        newParams.delete('fecha');
         newParams.delete('comentarioId');
         newParams.delete('notaId');
         setSearchParams(newParams);
@@ -2008,7 +2026,9 @@ events={events}
           setMobileDayIndex={setMobileDayIndex}
           setTaskCounts={setTaskCounts}
           targetEventId={targetEventId}
+          highlightTareaId={highlightTareaId}
           onTargetEventProcessed={() => setTargetEventId(null)}
+          onHighlightTareaProcessed={() => setHighlightTareaId(null)}
           initialTareas={weeklyTasks.length > 0 ? weeklyTasks : null}
         />
       )}

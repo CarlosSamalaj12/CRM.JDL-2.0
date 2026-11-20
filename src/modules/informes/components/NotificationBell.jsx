@@ -205,8 +205,12 @@ export default function NotificationBell() {
         navigate(`/kanban?highlightEvento=${n.idocupacion}`);
       }
     } else if (n.tipo === 'tarea_asignada' || n.tipo === 'tarea_completada') {
-      // Notificaciones de tareas → ir a tareas semanales con el evento resaltado
-      navigate(`/kanban?viewMode=tareas${n.idocupacion ? `&highlightEvento=${n.idocupacion}` : ''}`);
+      // Notificaciones de tareas → ir a tareas semanales con el evento y la tarea resaltados
+      const tareaId = n.comentario_id;
+      const q = new URLSearchParams({ viewMode: 'tareas' });
+      if (n.idocupacion) q.set('highlightEvento', String(n.idocupacion));
+      if (tareaId) q.set('highlightTarea', String(tareaId));
+      navigate(`/kanban?${q.toString()}`);
     } else if (n.idocupacion) {
       // Para otros tipos de notificaciones con idocupacion, intentar ir al informe
       try {

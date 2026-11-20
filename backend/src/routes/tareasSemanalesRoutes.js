@@ -7,6 +7,7 @@ const router = express.Router();
 // Blindaje de seguridad: todas las tareas semanales requieren autenticación
 router.use(authenticate);
 
+router.get('/item/:id', tareasSemanalesController.getTareaById);
 router.get('/evento/:id_ocupacion', tareasSemanalesController.getTareasByOcupacion);
 router.get('/:semana_lunes/merged', tareasSemanalesController.getTareasMerged);
 router.get('/:semana_lunes', tareasSemanalesController.getTareasSemana);

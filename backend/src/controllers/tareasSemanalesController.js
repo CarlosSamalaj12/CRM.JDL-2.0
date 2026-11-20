@@ -127,9 +127,8 @@ export async function createTarea(req, res, next) {
     const creadorId = req.user?.id;
     const assignerName = usuario_nombre || req.user?.nombre || 'Un administrador';
 
-    const redirectUrl = id_ocupacion
-      ? `/kanban?viewMode=tareas&highlightEvento=${id_ocupacion}`
-      : '/kanban?viewMode=tareas';
+    const targetFechaStr = String(fecha_tarea || '').slice(0, 10);
+    const redirectUrl = `/kanban?viewMode=tareas${targetFechaStr ? `&fecha=${targetFechaStr}` : ''}&highlightTarea=${result.insertId}${id_ocupacion ? `&highlightEvento=${id_ocupacion}` : ''}`;
 
     // Obtener nombre del equipo si aplica
     let equipoNombre = '';
@@ -208,6 +207,11 @@ export async function updateTarea(req, res, next) {
     const [existing] = await pool.query('SELECT * FROM tareas_semanales WHERE id = ?', [id]);
     if (existing.length === 0) return res.status(404).json({ message: 'Tarea no encontrada' });
     const prev = existing[0];
+
+    // Blindaje de idempotencia: si ya está en el estado deseado sin otros cambios, responder de inmediato
+    if (completada !== undefined && Number(prev.completada) === (completada ? 1 : 0) && contenido === undefined && no_realizado === undefined && id_ocupacion === undefined) {
+      return res.json(prev);
+    }
     const fields = [];
     const params = [];
     if (contenido !== undefined) {
@@ -400,5 +404,15 @@ export async function autoMarcarNoRealizado(req, res, next) {
       [hoy]
     );
     res.json({ actualizados: result.affectedRows });
+  } catch (error) { next(error); }
+}
+
+export async function getTareaById(req, res, next) {
+  try {
+    await ensureTables();
+    const { id } = req.params;
+    const [rows] = await pool.query('SELECT * FROM tareas_semanales WHERE id = ?', [id]);
+    if (rows.length === 0) return res.status(404).json({ message: 'Tarea no encontrada' });
+    res.json(rows[0]);
   } catch (error) { next(error); }
 }

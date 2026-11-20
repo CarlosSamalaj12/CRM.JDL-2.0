@@ -70,7 +70,9 @@ export default function WeeklyTasks({
   setMobileDayIndex: parentSetMobileDayIndex,
   setTaskCounts,
   targetEventId,
+  highlightTareaId,
   onTargetEventProcessed,
+  onHighlightTareaProcessed,
   initialTareas = null,
 }) {
   const user = getCurrentUser();
@@ -78,6 +80,7 @@ export default function WeeklyTasks({
 
   const [tareas, setTareas] = useState(() => Array.isArray(initialTareas) ? initialTareas : []);
   const [loading, setLoading] = useState(!Array.isArray(initialTareas));
+  const [togglingIds, setTogglingIds] = useState(new Set());
   const [showHistorial, setShowHistorial] = useState(false);
   const showHistorialRef = useRef(false);
   const [historial, setHistorial] = useState([]);
@@ -91,6 +94,13 @@ export default function WeeklyTasks({
   const [adding, setAdding] = useState(false);
   const [equipos, setEquipos] = useState([]);
   const [newEquipoId, setNewEquipoId] = useState('');
+
+  // Sincronizar newFecha cuando selectedDate cambie desde el componente padre
+  useEffect(() => {
+    if (selectedDate) {
+      setNewFecha(selectedDate);
+    }
+  }, [selectedDate]);
 
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
@@ -133,8 +143,6 @@ export default function WeeklyTasks({
 
   const diasEvento = useMemo(() => {
     if (!newIdOcupacion) return [];
-    // El evento seleccionado tiene un Idocupacion que corresponde a un día específico.
-    // Buscamos todos los días del mismo evento agrupando por Institucion + Salon.
     const sel = events.find(e => String(e.Idocupacion) === String(newIdOcupacion));
     if (!sel) return [];
     return events
@@ -145,28 +153,19 @@ export default function WeeklyTasks({
   }, [newIdOcupacion, events]);
 
   const uniqueEvents = useMemo(() => {
-    // Cada evento en la BD ya representa un día (Idocupacion único por día).
-    // Filtramos por la fecha seleccionada y agrupamos por Institucion+Salon
-    // para mostrar cada evento una sola vez en el dropdown.
+    // Filtrar eventos que ocurren en newFecha (incluyendo eventos de varios días)
     const seen = new Set();
     return events.filter(e => {
-      if (e.displayDate !== newFecha) return false;
+      const evInicio = String(e.FechaEvento || e.displayDate || '').slice(0, 10);
+      const evFin = e.FechaSalida ? String(e.FechaSalida).slice(0, 10) : evInicio;
+      const matchesDate = e.displayDate === newFecha || evInicio === newFecha || (newFecha >= evInicio && newFecha <= evFin);
+      if (!matchesDate) return false;
       const key = `${e.Institucion || ''}|${e.Salon || ''}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
   }, [events, newFecha]);
-
-  const lastEventRef = useRef(null);
-  if (lastEventRef.current !== newIdOcupacion) {
-    lastEventRef.current = newIdOcupacion;
-    if (!newIdOcupacion) {
-      setNewSelectedDays([]);
-    } else {
-      setNewSelectedDays(diasEvento.length > 1 ? [newFecha] : diasEvento);
-    }
-  }
 
   useEffect(() => {
     getEquiposTrabajo().then(data => setEquipos(data)).catch(() => {});
@@ -254,9 +253,10 @@ export default function WeeklyTasks({
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!newContenido.trim() || !user) return;
+    if (!newContenido.trim() || !user || adding) return;
     setAdding(true);
-    const daysToCreate = newSelectedDays.length > 0 ? newSelectedDays : [newFecha];
+    const targetDate = newFecha || selectedDate;
+    const daysToCreate = newSelectedDays.length > 0 ? newSelectedDays : [targetDate];
     try {
       for (const day of daysToCreate) {
         await createTareaSemanal({
@@ -289,33 +289,53 @@ export default function WeeklyTasks({
   };
 
   const handleToggleComplete = async (tarea) => {
-    if (!user) return;
+    if (!user || togglingIds.has(tarea.id)) return;
+    const nextCompletada = !tarea.completada;
+
+    // 1. Bloqueo inmediato para evitar múltiples clics
+    setTogglingIds(prev => new Set(prev).add(tarea.id));
+
+    // 2. Actualización optimista inmediata en la UI (0ms de latencia percibida)
+    setTareas(prev => prev.map(t => t.id === tarea.id ? {
+      ...t,
+      completada: nextCompletada ? 1 : 0,
+      no_realizado: 0,
+      completada_en: nextCompletada ? new Date().toISOString() : null
+    } : t));
+
     try {
       if (tarea._source === 'evento') {
-        await updateTarea(tarea.id, { completada: !tarea.completada });
+        await updateTarea(tarea.id, { completada: nextCompletada });
         logHistorialEntry({
-          tarea_id: tarea.id, accion: tarea.completada ? 'uncompleted' : 'completed',
+          tarea_id: tarea.id, accion: nextCompletada ? 'completed' : 'uncompleted',
           contenido_previo: tarea.contenido, contenido_nuevo: tarea.contenido,
           usuario_id: user.id || user._id || '', usuario_nombre: user.name || user.nombre || user.username || '',
         }).catch(() => {});
       } else {
         await updateTareaSemanal(tarea.id, {
-          completada: !tarea.completada,
+          completada: nextCompletada,
           usuario_id: user.id || user._id || '',
           usuario_nombre: user.name || user.nombre || user.username || '',
         });
       }
       addLocalHistory({
-        accion: tarea.completada ? 'uncompleted' : 'completed',
+        accion: nextCompletada ? 'completed' : 'uncompleted',
         contenido_previo: tarea.contenido, contenido_nuevo: tarea.contenido,
         usuario_nombre: user.name || user.nombre || user.username || '',
         creado_en: new Date().toISOString(),
       });
-      await loadTareas(false);
       if (showHistorialRef.current) loadHistorial();
     } catch (err) {
+      // Revertir estado optimista si hubo error de conexión
+      setTareas(prev => prev.map(t => t.id === tarea.id ? tarea : t));
       toast('Error al cambiar estado');
       console.error('Error toggling task:', err);
+    } finally {
+      setTogglingIds(prev => {
+        const next = new Set(prev);
+        next.delete(tarea.id);
+        return next;
+      });
     }
   };
 
@@ -446,6 +466,27 @@ export default function WeeklyTasks({
       onTargetEventProcessed();
     }
   }, [targetEventId, tareas, weekDays, setMobileDayIndex, onTargetEventProcessed]);
+
+  // Navegar y resaltar tarea específica cuando viene de una notificación
+  useEffect(() => {
+    if (!highlightTareaId || !tareas.length) return;
+    const targetTask = tareas.find(t => String(t.id) === String(highlightTareaId));
+    if (targetTask && targetTask.fecha_tarea) {
+      const taskDate = String(targetTask.fecha_tarea).slice(0, 10);
+      const d = new Date(taskDate + 'T12:00:00');
+      const dayIdx = (d.getDay() + 6) % 7;
+      setMobileDayIndex(dayIdx);
+      setTimeout(() => {
+        const el = document.getElementById(`tarea-row-${highlightTareaId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 400);
+      if (onHighlightTareaProcessed) {
+        setTimeout(onHighlightTareaProcessed, 5000);
+      }
+    }
+  }, [highlightTareaId, tareas, setMobileDayIndex, onHighlightTareaProcessed]);
 
   useEffect(() => {
     if (setTaskCounts) {
@@ -766,21 +807,30 @@ export default function WeeklyTasks({
                   day.tareas.map(t => {
                     const isEditing = editingId === t.id;
                     const isPast = String(t.fecha_tarea || '').slice(0, 10) < new Date().toISOString().slice(0, 10) && !t.completada;
+                    const isHighlighted = String(highlightTareaId) === String(t.id);
+                    const isToggling = togglingIds.has(t.id);
                     return (
-                      <div key={t.id} style={{
+                      <div id={`tarea-row-${t.id}`} key={t.id} style={{
                         display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '10px',
                         flexWrap: isMobile ? 'wrap' : 'nowrap',
                         padding: isMobile ? '10px 12px' : '8px 14px', borderBottom: '1px solid #f1f5f9',
-                        background: t.completada ? 'var(--success-bg)' : t.no_realizado ? 'var(--danger-bg)' : 'var(--bg-card)',
-                        opacity: t.completada ? 0.7 : 1,
+                        background: isHighlighted ? 'rgba(99, 102, 241, 0.08)' : (t.completada ? 'var(--success-bg)' : t.no_realizado ? 'var(--danger-bg)' : 'var(--bg-card)'),
+                        opacity: isToggling ? 0.65 : (t.completada ? 0.75 : 1),
+                        border: isHighlighted ? '2px solid #6366f1' : '1px solid transparent',
+                        borderRadius: isHighlighted ? '8px' : '0',
+                        boxShadow: isHighlighted ? '0 0 0 3px rgba(99, 102, 241, 0.25)' : 'none',
+                        transition: 'all 0.25s ease',
                       }}>
                         {canCompleteTask(t) ? (
-                          <button onClick={() => handleToggleComplete(t)}
+                          <button
+                            disabled={isToggling}
+                            onClick={() => handleToggleComplete(t)}
                             style={{
                               padding: isMobile ? '5px 12px' : (t.completada ? '3px 12px' : '3px 10px'), borderRadius: '20px', border: '2px solid',
                               borderColor: t.completada ? '#10b981' : t.no_realizado ? '#ef4444' : 'var(--border)',
                               background: t.completada ? '#10b981' : t.no_realizado ? 'var(--danger-bg)' : 'var(--bg-card)',
-                              cursor: 'pointer', flexShrink: 0,
+                              cursor: isToggling ? 'wait' : 'pointer', flexShrink: 0,
+                              pointerEvents: isToggling ? 'none' : 'auto',
                               fontSize: isMobile ? '12px' : '11px', fontWeight: 700, lineHeight: isMobile ? '24px' : '20px',
                               minHeight: isMobile ? '36px' : 'auto',
                               color: t.completada ? '#ffffff' : t.no_realizado ? '#ef4444' : 'var(--text-muted)',
@@ -788,10 +838,10 @@ export default function WeeklyTasks({
                             }}
                             data-tooltip={t.completada ? 'Desmarcar' : 'Completar'}
                             onMouseEnter={e => {
-                              if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.background = 'var(--primary-bg)'; }
+                              if (!t.completada && !t.no_realizado && !isToggling) { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.background = 'var(--primary-bg)'; }
                             }}
                             onMouseLeave={e => {
-                              if (!t.completada && !t.no_realizado) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-card)'; }
+                              if (!t.completada && !t.no_realizado && !isToggling) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-card)'; }
                             }}
                           >
                             {Boolean(t.completada) && 'Hecho'}

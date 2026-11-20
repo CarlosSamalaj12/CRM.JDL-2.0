@@ -1059,6 +1059,15 @@ export async function getTareasSemana(semanaLunes, params = {}) {
   return response.json();
 }
 
+export async function getTareaSemanalById(id) {
+  const token = localStorage.getItem('token');
+  const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales/item/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new Error('Error al cargar detalle de tarea');
+  return response.json();
+}
+
 export async function createTareaSemanal(data) {
   const response = await fetchWithTimeout(`${apiUrl}/api/tareas-semanales`, {
     method: 'POST',

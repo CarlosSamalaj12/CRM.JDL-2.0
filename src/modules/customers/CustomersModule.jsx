@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef, useDeferredValue } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { STATUS_META } from '../calendar/constants';
 import MultiSelect from '../reports/components/MultiSelect';
@@ -285,8 +285,286 @@ const getEventType = (ev) => {
   return 'Social';
 };
 
+/* ── High-Performance Memoized Deal Card ── */
+const DealCard = React.memo(function DealCard({ ev, stageColor, stageLabel, isLost, onNavigate }) {
+  const typeTagClass = ev._eventType === 'Social' ? 'is-social' : ev._eventType === 'Corporativo' ? 'is-corporativo' : 'is-individual';
+  const dealAmount = ev._quoteTotal;
+
+  return (
+    <div
+      className="customers-deal-card"
+      onClick={() => onNavigate(`/reserva/${ev.id}`)}
+    >
+      {/* Card Top: Tag + Amount */}
+      <div className="customers-card-top-row">
+        {isLost ? (
+          <span
+            className="customers-card-tag"
+            style={{
+              background: '#fef2f2',
+              color: '#dc2626',
+              borderColor: '#fecaca',
+            }}
+          >
+            {ev.status === 'Cancelado' ? 'CANCELADO' : 'PERDIDO'} • {ev._eventType}
+          </span>
+        ) : (
+          <span className={`customers-card-tag ${typeTagClass}`}>
+            {ev._eventType}
+          </span>
+        )}
+        {dealAmount > 0 && (
+          <span className="customers-card-amount" style={isLost ? { color: '#dc2626' } : undefined}>
+            {formatCurrency(dealAmount)}
+          </span>
+        )}
+      </div>
+
+      {/* Event Title */}
+      <h4 className="customers-card-title">
+        {ev.name || 'Sin nombre'}
+      </h4>
+
+      {/* Client Name */}
+      {ev.clientName && (
+        <div className="customers-card-client-row">
+          <IconUser size={12} />
+          <span>{ev.clientName}</span>
+        </div>
+      )}
+
+      {/* Meta Chips */}
+      <div className="customers-card-meta-chips">
+        {ev.date && (
+          <span className="customers-card-chip">
+            <IconCalendar size={11} />
+            <span>{ev.date}</span>
+          </span>
+        )}
+        {ev.salon && (
+          <span className="customers-card-chip">
+            <IconMapPin size={11} />
+            <span>{ev.salon}</span>
+          </span>
+        )}
+        {ev.pax > 0 && (
+          <span className="customers-card-chip">
+            <IconUsers size={11} />
+            <span>{ev.pax} pax</span>
+          </span>
+        )}
+      </div>
+
+      {/* Footer: Seller + Stage Badge */}
+      <div className="customers-card-footer-row">
+        <div className="customers-card-seller" title={ev.userName}>
+          <IconUser size={11} />
+          <span>{ev.userName}</span>
+        </div>
+        <span
+          className="customers-card-status-pill"
+          style={isLost ? {
+            background: '#fef2f2',
+            color: '#dc2626',
+            borderColor: '#fecaca',
+          } : {
+            background: `${stageColor}15`,
+            color: stageColor,
+            borderColor: `${stageColor}28`,
+          }}
+        >
+          {stageLabel || ev.status}
+        </span>
+      </div>
+    </div>
+  );
+});
+
+/* ── Progressive Loading Kanban Column ── */
+const BATCH_SIZE = 25;
+
+const KanbanColumn = React.memo(function KanbanColumn({
+  stageKey,
+  label,
+  desc,
+  Icon,
+  items,
+  stats,
+  stageColor,
+  isLost = false,
+  isMobileView,
+  mobileViewAllStages,
+  currentStageIndex,
+  totalStages,
+  onPrevStage,
+  onNextStage,
+  onNavigate,
+}) {
+  const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
+  const scrollContainerRef = useRef(null);
+  const sentinelRef = useRef(null);
+
+  // Reset visibleCount when items change (e.g. filters applied)
+  useEffect(() => {
+    setVisibleCount(BATCH_SIZE);
+  }, [items]);
+
+  useEffect(() => {
+    if (visibleCount >= items.length) return;
+    const sentinelEl = sentinelRef.current;
+    const containerEl = scrollContainerRef.current;
+    if (!sentinelEl || !containerEl) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          setVisibleCount(prev => Math.min(prev + BATCH_SIZE, items.length));
+        }
+      },
+      {
+        root: containerEl,
+        rootMargin: '250px',
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(sentinelEl);
+    return () => observer.disconnect();
+  }, [visibleCount, items.length]);
+
+  const displayedItems = useMemo(() => {
+    return items.slice(0, visibleCount);
+  }, [items, visibleCount]);
+
+  return (
+    <div
+      className={`customers-kanban-column ${isLost ? 'is-lost' : ''}`}
+      style={{
+        '--stage-color': stageColor,
+        '--card-hover-border': isLost ? '#fca5a5' : `${stageColor}66`,
+      }}
+    >
+      {/* Column Header */}
+      <div className="customers-column-header">
+        <div className="customers-column-top-row">
+          <div className="customers-column-title-box">
+            <div
+              className="customers-stage-icon-badge"
+              style={{
+                background: isLost ? 'rgba(239, 68, 68, 0.12)' : `${stageColor}16`,
+                color: stageColor,
+              }}
+            >
+              <Icon size={15} />
+            </div>
+            <div>
+              <div className="customers-stage-name" style={isLost ? { color: '#991b1b' } : undefined}>
+                {label}
+              </div>
+              <div className="customers-stage-desc" title={desc}>
+                {desc}
+              </div>
+            </div>
+          </div>
+          <div className="customers-column-nav-actions">
+            {isMobileView && !mobileViewAllStages && (
+              <button
+                type="button"
+                className="customers-col-arrow-btn"
+                onClick={(e) => { e.stopPropagation(); onPrevStage(); }}
+                disabled={currentStageIndex === 0}
+                title="Etapa anterior"
+              >
+                ‹
+              </button>
+            )}
+            <div
+              className="customers-stage-count-pill"
+              style={isLost ? {
+                background: '#fef2f2',
+                color: '#dc2626',
+                borderColor: '#fecaca',
+              } : {
+                background: `${stageColor}15`,
+                color: stageColor,
+                borderColor: `${stageColor}28`,
+              }}
+            >
+              {items.length}
+            </div>
+            {isMobileView && !mobileViewAllStages && (
+              <button
+                type="button"
+                className="customers-col-arrow-btn"
+                onClick={(e) => { e.stopPropagation(); onNextStage(); }}
+                disabled={currentStageIndex === totalStages - 1}
+                title="Etapa siguiente"
+              >
+                ›
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Column Stats (PAX & Monto) */}
+        <div className="customers-column-stats-row">
+          <div className="customers-stat-chip">
+            <IconUsers size={11} />
+            <span><strong>{Number(stats.totalPax || 0).toLocaleString('en-US')}</strong> PAX</span>
+          </div>
+          <div className="customers-stat-chip revenue-chip" title={formatCurrency(stats.totalIncome)}>
+            <IconCoins size={11} />
+            <span><strong>{formatKpiCurrency(stats.totalIncome)}</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {/* Column Body with Deal Cards */}
+      <div className="customers-column-body" ref={scrollContainerRef}>
+        {items.length === 0 ? (
+          <div className="customers-empty-column">
+            <div className="customers-empty-icon">
+              <IconInbox size={26} />
+            </div>
+            <div className="customers-empty-text">{isLost ? 'Sin pérdidas' : 'Sin oportunidades'}</div>
+          </div>
+        ) : (
+          <>
+            {displayedItems.map(ev => (
+              <DealCard
+                key={ev.id}
+                ev={ev}
+                stageColor={stageColor}
+                stageLabel={label}
+                isLost={isLost}
+                onNavigate={onNavigate}
+              />
+            ))}
+
+            {visibleCount < items.length && (
+              <div ref={sentinelRef} className="customers-column-sentinel">
+                <div className="customers-sentinel-spinner" />
+                <span>Mostrando {visibleCount} de {items.length}</span>
+              </div>
+            )}
+
+            {visibleCount >= items.length && items.length > BATCH_SIZE && (
+              <div className="customers-column-end">
+                <span>{items.length} oportunidades cargadas</span>
+              </div>
+            )}
+          </>
+        )}
+        {isMobileView && <div style={{ height: 48, flexShrink: 0 }} />}
+      </div>
+    </div>
+  );
+});
+
 export default function CustomersModule() {
   const navigate = useNavigate();
+  const handleNavigate = useCallback((path) => navigate(path), [navigate]);
   const outlet = useOutletContext() || {};
   const events = useMemo(() => outlet?.events || [], [outlet?.events]);
   const users = useMemo(() => outlet?.users || [], [outlet?.users]);
@@ -301,8 +579,14 @@ export default function CustomersModule() {
       .sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || ''));
   }, [users]);
 
+  // Opciones de vendedor memoizadas para evitar re-render innecesario de MultiSelect
+  const sellerOptions = useMemo(() => {
+    return sellerUsers.map(u => ({ value: u.id, label: u.fullName || u.name }));
+  }, [sellerUsers]);
+
   // Filtros
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [userFilter, setUserFilter] = useState(new Set()); // Set vacío = "Todos"
   const [typeFilter, setTypeFilter] = useState(new Set()); // Set vacío = "Todos"
   const [dateFrom, setDateFrom] = useState('');
@@ -390,60 +674,76 @@ export default function CustomersModule() {
     setDatePreset('custom');
   };
 
-  const pipelineData = useMemo(() => {
-    if (!events || events.length === 0) return {};
+  // Pre-indexar eventos en memoria una sola vez cuando cambian events o users
+  const enrichedEvents = useMemo(() => {
+    if (!events || events.length === 0) return [];
+    const userMap = new Map();
+    for (const u of (users || [])) {
+      userMap.set(u.id, u.fullName || u.name || 'Sin encargado');
+    }
+
+    return events.map(ev => {
+      const userName = userMap.get(ev.userId) || 'Sin encargado';
+      const evType = getEventType(ev);
+      const quoteTotal = getQuoteTotalGtq(ev.quote);
+      const searchCorpus = (
+        (ev.name || '') + ' ' +
+        (ev.clientName || '') + ' ' +
+        (ev.salon || '') + ' ' +
+        userName
+      ).toLowerCase();
+      const startDate = ev.date || ev.eventDateStart || '';
+      const endDate = ev.eventDateEnd || ev.eventDateStart || ev.date || '';
+
+      return {
+        ...ev,
+        userName,
+        _eventType: evType,
+        _quoteTotal: quoteTotal,
+        _searchCorpus: searchCorpus,
+        _startDate: startDate,
+        _endDate: endDate,
+      };
+    });
+  }, [events, users]);
+
+  const { pipelineData, lostAll } = useMemo(() => {
+    if (!enrichedEvents || enrichedEvents.length === 0) {
+      return { pipelineData: {}, lostAll: [] };
+    }
 
     const stageMap = {};
     PIPELINE_STAGES.forEach(s => { stageMap[s.key] = []; });
+    const lost = [];
 
-    for (const ev of events) {
+    for (const ev of enrichedEvents) {
+      if (ev.status === 'Cancelado' || ev.status === 'Perdido') {
+        lost.push(ev);
+        continue;
+      }
       if (EXCLUDED_STATUSES.has(ev.status)) continue;
-      const assignedUser = users?.find(u => u.id === ev.userId);
       const stage = stageMap[ev.status];
-      if (!stage) continue;
-      stage.push({
-        ...ev,
-        userName: assignedUser?.fullName || assignedUser?.name || 'Sin encargado',
-      });
+      if (stage) {
+        stage.push(ev);
+      }
     }
 
     // Sort each stage by date descending
     PIPELINE_STAGES.forEach(s => {
       stageMap[s.key].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     });
+    lost.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-    return stageMap;
-  }, [events, users]);
+    return { pipelineData: stageMap, lostAll: lost };
+  }, [enrichedEvents]);
 
-  // Evaluador universal de filtros por evento
+  // Evaluador universal de filtros ultra-rápido sobre datos pre-indexados
   const matchEvent = useCallback((ev, term) => {
-    if (term) {
-      const matchText = (
-        (ev.name || '') + ' ' +
-        (ev.clientName || '') + ' ' +
-        (ev.salon || '') + ' ' +
-        (ev.userName || '')
-      ).toLowerCase();
-      if (!matchText.includes(term)) return false;
-    }
-
-    if (userFilter.size > 0 && !userFilter.has(ev.userId)) {
-      return false;
-    }
-
-    if (typeFilter.size > 0) {
-      const evType = getEventType(ev);
-      if (!typeFilter.has(evType)) return false;
-    }
-
-    if (dateFrom || dateTo) {
-      const evStart = ev.date || ev.eventDateStart || '';
-      const evEnd = ev.eventDateEnd || ev.eventDateStart || ev.date || '';
-      if (!evStart && !evEnd) return false;
-      if (dateFrom && evEnd && evEnd < dateFrom) return false;
-      if (dateTo && evStart && evStart > dateTo) return false;
-    }
-
+    if (term && !ev._searchCorpus.includes(term)) return false;
+    if (userFilter.size > 0 && !userFilter.has(ev.userId)) return false;
+    if (typeFilter.size > 0 && !typeFilter.has(ev._eventType)) return false;
+    if (dateFrom && ev._endDate && ev._endDate < dateFrom) return false;
+    if (dateTo && ev._startDate && ev._startDate > dateTo) return false;
     return true;
   }, [userFilter, typeFilter, dateFrom, dateTo]);
 
@@ -452,54 +752,41 @@ export default function CustomersModule() {
   const filteredPipeline = useMemo(() => {
     if (!hasActiveFilters) return pipelineData;
 
-    const term = search.trim().toLowerCase();
+    const term = deferredSearch.trim().toLowerCase();
     const result = {};
     for (const stage of PIPELINE_STAGES) {
       const items = pipelineData[stage.key] || [];
       result[stage.key] = items.filter(ev => matchEvent(ev, term));
     }
     return result;
-  }, [pipelineData, hasActiveFilters, search, matchEvent]);
+  }, [pipelineData, hasActiveFilters, deferredSearch, matchEvent]);
 
   const totalLeads = useMemo(() => {
     return Object.values(filteredPipeline).reduce((sum, arr) => sum + arr.length, 0);
   }, [filteredPipeline]);
 
-  const lostAll = useMemo(() => {
-    return (events || [])
-      .filter(ev => ev.status === 'Cancelado' || ev.status === 'Perdido')
-      .map(ev => {
-        const assignedUser = users?.find(u => u.id === ev.userId);
-        return {
-          ...ev,
-          userName: assignedUser?.fullName || assignedUser?.name || 'Sin encargado',
-        };
-      })
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [events, users]);
-
   const lostFiltered = useMemo(() => {
     if (!hasActiveFilters) return lostAll;
-    const term = search.trim().toLowerCase();
+    const term = deferredSearch.trim().toLowerCase();
     return lostAll.filter(ev => matchEvent(ev, term));
-  }, [lostAll, hasActiveFilters, search, matchEvent]);
+  }, [lostAll, hasActiveFilters, deferredSearch, matchEvent]);
 
   const stageStats = useMemo(() => {
     const stats = {};
     for (const stage of PIPELINE_STAGES) {
       const items = filteredPipeline[stage.key] || [];
       let totalPax = 0, totalIncome = 0;
-      for (const ev of items) {
-        totalPax += Number(ev.pax || 0);
-        totalIncome += getQuoteTotalGtq(ev.quote);
+      for (let i = 0; i < items.length; i++) {
+        totalPax += Number(items[i].pax || 0);
+        totalIncome += items[i]._quoteTotal;
       }
       stats[stage.key] = { totalPax, totalIncome };
     }
 
     let lostPax = 0, lostIncome = 0;
-    for (const ev of lostFiltered) {
-      lostPax += Number(ev.pax || 0);
-      lostIncome += getQuoteTotalGtq(ev.quote);
+    for (let i = 0; i < lostFiltered.length; i++) {
+      lostPax += Number(lostFiltered[i].pax || 0);
+      lostIncome += lostFiltered[i]._quoteTotal;
     }
     stats.lost = { totalPax: lostPax, totalIncome: lostIncome };
     return stats;
@@ -733,7 +1020,7 @@ export default function CustomersModule() {
             <MultiSelect
               selected={userFilter}
               onChange={setUserFilter}
-              options={sellerUsers.map(u => ({ value: u.id, label: u.fullName || u.name }))}
+              options={sellerOptions}
               placeholder="Vendedor"
               emptyLabel="Todos los vendedores"
               searchable
@@ -809,367 +1096,52 @@ export default function CustomersModule() {
           {PIPELINE_STAGES
             .filter(stage => !isMobileView || mobileViewAllStages || stage.key === mobileStageKey)
             .map(stage => {
-            const items = filteredPipeline[stage.key] || [];
-            const stageColor = getStatusColor(stage.key);
-            const StageIcon = stage.Icon;
-            const stats = stageStats[stage.key] || { totalPax: 0, totalIncome: 0 };
+              const items = filteredPipeline[stage.key] || [];
+              const stageColor = getStatusColor(stage.key);
+              const stats = stageStats[stage.key] || { totalPax: 0, totalIncome: 0 };
 
-            return (
-              <div
-                key={stage.key}
-                className="customers-kanban-column"
-                style={{
-                  '--stage-color': stageColor,
-                  '--card-hover-border': `${stageColor}66`,
-                }}
-              >
-                {/* Column Header */}
-                <div className="customers-column-header">
-                  <div className="customers-column-top-row">
-                    <div className="customers-column-title-box">
-                      <div
-                        className="customers-stage-icon-badge"
-                        style={{
-                          background: `${stageColor}16`,
-                          color: stageColor,
-                        }}
-                      >
-                        <StageIcon size={15} />
-                      </div>
-                      <div>
-                        <div className="customers-stage-name">{stage.label}</div>
-                        <div className="customers-stage-desc" title={stage.desc}>
-                          {stage.desc}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="customers-column-nav-actions">
-                      {isMobileView && !mobileViewAllStages && (
-                        <button
-                          type="button"
-                          className="customers-col-arrow-btn"
-                          onClick={(e) => { e.stopPropagation(); handlePrevStage(); }}
-                          disabled={currentStageIndex === 0}
-                          title="Etapa anterior"
-                        >
-                          ‹
-                        </button>
-                      )}
-                      <div
-                        className="customers-stage-count-pill"
-                        style={{
-                          background: `${stageColor}15`,
-                          color: stageColor,
-                          borderColor: `${stageColor}28`,
-                        }}
-                      >
-                        {items.length}
-                      </div>
-                      {isMobileView && !mobileViewAllStages && (
-                        <button
-                          type="button"
-                          className="customers-col-arrow-btn"
-                          onClick={(e) => { e.stopPropagation(); handleNextStage(); }}
-                          disabled={currentStageIndex === ALL_STAGES.length - 1}
-                          title="Etapa siguiente"
-                        >
-                          ›
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Column Stats (PAX & Monto) */}
-                  <div className="customers-column-stats-row">
-                    <div className="customers-stat-chip">
-                      <IconUsers size={11} />
-                      <span><strong>{Number(stats.totalPax || 0).toLocaleString('en-US')}</strong> PAX</span>
-                    </div>
-                    <div className="customers-stat-chip revenue-chip" title={formatCurrency(stats.totalIncome)}>
-                      <IconCoins size={11} />
-                      <span><strong>{formatKpiCurrency(stats.totalIncome)}</strong></span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Column Body with Deal Cards */}
-                <div className="customers-column-body">
-                  {items.length === 0 ? (
-                    <div className="customers-empty-column">
-                      <div className="customers-empty-icon">
-                        <IconInbox size={26} />
-                      </div>
-                      <div className="customers-empty-text">Sin oportunidades</div>
-                    </div>
-                  ) : (
-                    items.map(ev => {
-                      const dealAmount = getQuoteTotalGtq(ev.quote);
-                      const evType = getEventType(ev);
-                      const typeTagClass = evType === 'Social' ? 'is-social' : evType === 'Corporativo' ? 'is-corporativo' : 'is-individual';
-
-                      return (
-                        <div
-                          key={ev.id}
-                          className="customers-deal-card"
-                          onClick={() => navigate(`/reserva/${ev.id}`)}
-                        >
-                          {/* Card Top: Tag + Amount */}
-                          <div className="customers-card-top-row">
-                            <span className={`customers-card-tag ${typeTagClass}`}>
-                              {evType}
-                            </span>
-                            {dealAmount > 0 && (
-                              <span className="customers-card-amount">
-                                {formatCurrency(dealAmount)}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Event Title */}
-                          <h4 className="customers-card-title">
-                            {ev.name || 'Sin nombre'}
-                          </h4>
-
-                          {/* Client Name */}
-                          {ev.clientName && (
-                            <div className="customers-card-client-row">
-                              <IconUser size={12} />
-                              <span>{ev.clientName}</span>
-                            </div>
-                          )}
-
-                          {/* Meta Chips */}
-                          <div className="customers-card-meta-chips">
-                            {ev.date && (
-                              <span className="customers-card-chip">
-                                <IconCalendar size={11} />
-                                <span>{ev.date}</span>
-                              </span>
-                            )}
-                            {ev.salon && (
-                              <span className="customers-card-chip">
-                                <IconMapPin size={11} />
-                                <span>{ev.salon}</span>
-                              </span>
-                            )}
-                            {ev.pax > 0 && (
-                              <span className="customers-card-chip">
-                                <IconUsers size={11} />
-                                <span>{ev.pax} pax</span>
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Footer: Seller + Stage Badge */}
-                          <div className="customers-card-footer-row">
-                            <div className="customers-card-seller" title={ev.userName}>
-                              <IconUser size={11} />
-                              <span>{ev.userName}</span>
-                            </div>
-                            <span
-                              className="customers-card-status-pill"
-                              style={{
-                                background: `${stageColor}15`,
-                                color: stageColor,
-                                borderColor: `${stageColor}28`,
-                              }}
-                            >
-                              {stage.label}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  {isMobileView && <div style={{ height: 48, flexShrink: 0 }} />}
-                </div>
-              </div>
-            );
-          })}
+              return (
+                <KanbanColumn
+                  key={stage.key}
+                  stageKey={stage.key}
+                  label={stage.label}
+                  desc={stage.desc}
+                  Icon={stage.Icon}
+                  items={items}
+                  stats={stats}
+                  stageColor={stageColor}
+                  isLost={false}
+                  isMobileView={isMobileView}
+                  mobileViewAllStages={mobileViewAllStages}
+                  currentStageIndex={currentStageIndex}
+                  totalStages={ALL_STAGES.length}
+                  onPrevStage={handlePrevStage}
+                  onNextStage={handleNextStage}
+                  onNavigate={handleNavigate}
+                />
+              );
+            })}
 
           {/* ── Lost Column (Cancelado / Perdido) ── */}
-          {(!isMobileView || mobileViewAllStages || mobileStageKey === 'lost') && (() => {
-            const stats = stageStats.lost || { totalPax: 0, totalIncome: 0 };
-
-            return (
-              <div
-                className="customers-kanban-column is-lost"
-                style={{
-                  '--stage-color': '#ef4444',
-                  '--card-hover-border': '#fca5a5',
-                }}
-              >
-                {/* Column Header */}
-                <div className="customers-column-header">
-                  <div className="customers-column-top-row">
-                    <div className="customers-column-title-box">
-                      <div
-                        className="customers-stage-icon-badge"
-                        style={{
-                          background: 'rgba(239, 68, 68, 0.12)',
-                          color: '#ef4444',
-                        }}
-                      >
-                        <IconXCircle size={15} />
-                      </div>
-                      <div>
-                        <div className="customers-stage-name" style={{ color: '#991b1b' }}>
-                          Perdido
-                        </div>
-                        <div className="customers-stage-desc" title="Oportunidades cerradas sin éxito">
-                          Cerradas sin éxito
-                        </div>
-                      </div>
-                    </div>
-                    <div className="customers-column-nav-actions">
-                      {isMobileView && !mobileViewAllStages && (
-                        <button
-                          type="button"
-                          className="customers-col-arrow-btn"
-                          onClick={(e) => { e.stopPropagation(); handlePrevStage(); }}
-                          disabled={currentStageIndex === 0}
-                          title="Etapa anterior"
-                        >
-                          ‹
-                        </button>
-                      )}
-                      <div
-                        className="customers-stage-count-pill"
-                        style={{
-                          background: '#fef2f2',
-                          color: '#dc2626',
-                          borderColor: '#fecaca',
-                        }}
-                      >
-                        {lostFiltered.length}
-                      </div>
-                      {isMobileView && !mobileViewAllStages && (
-                        <button
-                          type="button"
-                          className="customers-col-arrow-btn"
-                          onClick={(e) => { e.stopPropagation(); handleNextStage(); }}
-                          disabled={currentStageIndex === ALL_STAGES.length - 1}
-                          title="Etapa siguiente"
-                        >
-                          ›
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="customers-column-stats-row">
-                    <div className="customers-stat-chip">
-                      <IconUsers size={11} />
-                      <span><strong>{Number(stats.totalPax || 0).toLocaleString('en-US')}</strong> PAX</span>
-                    </div>
-                    <div className="customers-stat-chip revenue-chip" title={formatCurrency(stats.totalIncome)}>
-                      <IconCoins size={11} />
-                      <span><strong>{formatKpiCurrency(stats.totalIncome)}</strong></span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Column Body */}
-                <div className="customers-column-body">
-                  {lostFiltered.length === 0 ? (
-                    <div className="customers-empty-column">
-                      <div className="customers-empty-icon">
-                        <IconInbox size={26} />
-                      </div>
-                      <div className="customers-empty-text">Sin pérdidas</div>
-                    </div>
-                  ) : (
-                    lostFiltered.map(ev => {
-                      const dealAmount = getQuoteTotalGtq(ev.quote);
-                      const evType = getEventType(ev);
-
-                      return (
-                        <div
-                          key={ev.id}
-                          className="customers-deal-card"
-                          onClick={() => navigate(`/reserva/${ev.id}`)}
-                        >
-                          {/* Card Top: Tag + Amount */}
-                          <div className="customers-card-top-row">
-                            <span
-                              className="customers-card-tag"
-                              style={{
-                                background: '#fef2f2',
-                                color: '#dc2626',
-                                borderColor: '#fecaca',
-                              }}
-                            >
-                              {ev.status === 'Cancelado' ? 'CANCELADO' : 'PERDIDO'} • {evType}
-                            </span>
-                            {dealAmount > 0 && (
-                              <span className="customers-card-amount" style={{ color: '#dc2626' }}>
-                                {formatCurrency(dealAmount)}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Title */}
-                          <h4 className="customers-card-title">
-                            {ev.name || 'Sin nombre'}
-                          </h4>
-
-                          {/* Client */}
-                          {ev.clientName && (
-                            <div className="customers-card-client-row">
-                              <IconUser size={12} />
-                              <span>{ev.clientName}</span>
-                            </div>
-                          )}
-
-                          {/* Meta Chips */}
-                          <div className="customers-card-meta-chips">
-                            {ev.date && (
-                              <span className="customers-card-chip">
-                                <IconCalendar size={11} />
-                                <span>{ev.date}</span>
-                              </span>
-                            )}
-                            {ev.salon && (
-                              <span className="customers-card-chip">
-                                <IconMapPin size={11} />
-                                <span>{ev.salon}</span>
-                              </span>
-                            )}
-                            {ev.pax > 0 && (
-                              <span className="customers-card-chip">
-                                <IconUsers size={11} />
-                                <span>{ev.pax} pax</span>
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Footer */}
-                          <div className="customers-card-footer-row">
-                            <div className="customers-card-seller" title={ev.userName}>
-                              <IconUser size={11} />
-                              <span>{ev.userName}</span>
-                            </div>
-                            <span
-                              className="customers-card-status-pill"
-                              style={{
-                                background: '#fef2f2',
-                                color: '#dc2626',
-                                borderColor: '#fecaca',
-                              }}
-                            >
-                              {ev.status}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  {isMobileView && <div style={{ height: 48, flexShrink: 0 }} />}
-                </div>
-              </div>
-            );
-          })()}
+          {(!isMobileView || mobileViewAllStages || mobileStageKey === 'lost') && (
+            <KanbanColumn
+              stageKey="lost"
+              label="Perdido"
+              desc="Cerradas sin éxito"
+              Icon={IconXCircle}
+              items={lostFiltered}
+              stats={stageStats.lost || { totalPax: 0, totalIncome: 0 }}
+              stageColor="#ef4444"
+              isLost={true}
+              isMobileView={isMobileView}
+              mobileViewAllStages={mobileViewAllStages}
+              currentStageIndex={currentStageIndex}
+              totalStages={ALL_STAGES.length}
+              onPrevStage={handlePrevStage}
+              onNextStage={handleNextStage}
+              onNavigate={handleNavigate}
+            />
+          )}
         </div>
       </div>
     </div>

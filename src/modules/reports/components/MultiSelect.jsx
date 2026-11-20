@@ -40,10 +40,14 @@ export default function MultiSelect({
     const el = triggerRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setCoords({
-      top: r.bottom + window.scrollY + 6,
-      left: r.left + window.scrollX,
-      width: r.width,
+    const nextTop = r.bottom + window.scrollY + 6;
+    const nextLeft = r.left + window.scrollX;
+    const nextWidth = r.width;
+    setCoords(prev => {
+      if (prev && Math.abs(prev.top - nextTop) < 0.5 && Math.abs(prev.left - nextLeft) < 0.5 && Math.abs(prev.width - nextWidth) < 0.5) {
+        return prev;
+      }
+      return { top: nextTop, left: nextLeft, width: nextWidth };
     });
   }, []);
 
@@ -52,13 +56,20 @@ export default function MultiSelect({
     if (open) updateCoords();
   }, [open, updateCoords]);
 
-  // Mantener la posición sincronizada al hacer scroll o resize
+  // Mantener la posición sincronizada al hacer scroll o resize con requestAnimationFrame
   useEffect(() => {
     if (!open) return undefined;
-    const handler = () => updateCoords();
+    let rafId = null;
+    const handler = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        updateCoords();
+      });
+    };
     window.addEventListener('scroll', handler, true);
     window.addEventListener('resize', handler);
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener('scroll', handler, true);
       window.removeEventListener('resize', handler);
     };
