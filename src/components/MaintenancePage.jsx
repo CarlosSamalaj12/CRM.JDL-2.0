@@ -170,11 +170,14 @@ export default function MaintenancePage({ onBypassSuccess }) {
 
   return (
     <div className="maint-page-root">
+      {/* Sutil resplandor ambiental de fondo */}
+      <div className="maint-ambient-glow" />
+
       {/* Barra superior con marca institucional y badge global */}
       <header className="maint-top-bar">
         <div className="maint-brand">
           <div className="maint-logo-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f8fafc" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
               <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
               <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
@@ -182,36 +185,40 @@ export default function MaintenancePage({ onBypassSuccess }) {
           </div>
           <div className="maint-brand-text">
             <span className="maint-brand-name">Jardines del Lago</span>
-            <span className="maint-brand-sub">HOTEL & RESORT LAKE VIEW</span>
+            <span className="maint-brand-sub">Hotel &amp; Resort Lake View</span>
           </div>
         </div>
 
         <div className="maint-badge-global">
           <span className="maint-dot-amber"></span>
-          <span>Mantenimiento Preventivo Global</span>
+          <span>Mantenimiento Preventivo</span>
         </div>
       </header>
 
-      {/* Tarjeta Bento Ejecutiva */}
+      {/* Tarjeta Bento Minimalista */}
       <main className="maint-card">
-        {/* Cinta superior ámbar */}
-        <div className="maint-card-ribbon">
-          <div className="maint-ribbon-title">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-            <span>Optimización y despliegue de infraestructura de alta disponibilidad</span>
+        {/* Barra superior estilizada con estado y fase (reemplaza el bloque naranja tosco) */}
+        <div className="maint-card-header-bar">
+          <div className="maint-phase-pill">
+            <span className="maint-phase-dot" />
+            <span>Fase 2 de 2 • Optimización de infraestructura</span>
           </div>
-          <span className="maint-ribbon-badge">Fase 2 de 2</span>
+
+          <div className="maint-status-pill-pulse">
+            <span className="maint-ping-wrap">
+              <span className="maint-ping-wave" />
+              <span className="maint-ping-core" />
+            </span>
+            <span>En Progreso</span>
+          </div>
         </div>
 
         {/* Cuerpo de la tarjeta */}
         <div className="maint-card-body">
-          {/* Ícono de herramienta con versión */}
+          {/* Ícono minimalista con versión */}
           <div className="maint-icon-wrap">
             <div className="maint-icon-box">
-              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
               </svg>
             </div>
@@ -220,8 +227,7 @@ export default function MaintenancePage({ onBypassSuccess }) {
 
           <h1 className="maint-title">Sistema en Mantenimiento</h1>
           <p className="maint-subtitle">
-            Estamos realizando tareas de mantenimiento programadas para mejorar tu experiencia.
-            El sistema estar&aacute; disponible nuevamente en unos momentos.
+            Estamos realizando tareas de mantenimiento programadas para optimizar la seguridad y velocidad de la plataforma. El sistema estará disponible nuevamente en unos momentos.
           </p>
 
           {/* Botón único de Reintentar ahora */}
@@ -230,6 +236,7 @@ export default function MaintenancePage({ onBypassSuccess }) {
               onClick={handleRetry}
               disabled={retrying}
               className="maint-btn-retry"
+              type="button"
             >
               <svg
                 width="16"
@@ -256,19 +263,19 @@ export default function MaintenancePage({ onBypassSuccess }) {
 
           {/* Divisor canales de soporte */}
           <div className="maint-divider-row">
-            <div className="maint-divider-line"></div>
+            <div className="maint-divider-line" />
             <span className="maint-divider-text">Canales de Soporte Directo</span>
-            <div className="maint-divider-line"></div>
+            <div className="maint-divider-line" />
           </div>
 
-          {/* Cuadrícula de tarjetas de soporte */}
+          {/* Cuadrícula de tarjetas de soporte (diseño protegido contra desbordamientos) */}
           <div className="maint-support-grid">
             {/* Tarjeta 1: Área de Sistemas */}
             <div className="maint-support-card">
               <div className="maint-support-header">
                 <div className="maint-support-title-wrap">
                   <div className="maint-support-icon-badge">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
                       <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
                       <line x1="6" y1="6" x2="6.01" y2="6"/>
@@ -276,17 +283,20 @@ export default function MaintenancePage({ onBypassSuccess }) {
                     </svg>
                   </div>
                   <div className="maint-support-titles">
-                    <span className="maint-support-name">&Aacute;rea de Sistemas</span>
-                    <span className="maint-support-dept">Soporte t&eacute;cnico TI</span>
+                    <span className="maint-support-name">Área de Sistemas</span>
+                    <span className="maint-support-dept">Soporte técnico TI</span>
                   </div>
                 </div>
-                <span className="maint-status-pill">Disponible</span>
+                <span className="maint-status-pill maint-status-pill-green">
+                  <span className="maint-status-indicator-dot" />
+                  Disponible
+                </span>
               </div>
 
               {/* Teléfono y WhatsApp */}
               <div className="maint-contact-row">
                 <div className="maint-contact-info">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                   </svg>
                   <span>5414 0195</span>
@@ -299,8 +309,8 @@ export default function MaintenancePage({ onBypassSuccess }) {
 
               {/* Correo y Copiar */}
               <div className="maint-contact-row">
-                <div className="maint-contact-info">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <div className="maint-contact-info" title="sistemas@jardinesdellago.com">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                     <polyline points="22,6 12,13 2,6"/>
                   </svg>
@@ -310,7 +320,7 @@ export default function MaintenancePage({ onBypassSuccess }) {
                   <button
                     type="button"
                     onClick={() => handleCopyEmail('sistemas@jardinesdellago.com', 'sistemas')}
-                    className="maint-pill-btn"
+                    className={`maint-pill-btn ${copiedId === 'sistemas' ? 'maint-pill-btn-copied' : ''}`}
                   >
                     {copiedId === 'sistemas' ? '¡Copiado!' : 'Copiar'}
                   </button>
@@ -323,7 +333,7 @@ export default function MaintenancePage({ onBypassSuccess }) {
               <div className="maint-support-header">
                 <div className="maint-support-title-wrap">
                   <div className="maint-support-icon-badge">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M3 21h18"/>
                       <path d="M19 21v-4"/>
                       <path d="M19 11V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16"/>
@@ -336,17 +346,20 @@ export default function MaintenancePage({ onBypassSuccess }) {
                     </svg>
                   </div>
                   <div className="maint-support-titles">
-                    <span className="maint-support-name">Recepci&oacute;n & Hotel</span>
+                    <span className="maint-support-name">Recepción &amp; Hotel</span>
                     <span className="maint-support-dept">Operaciones y Reservas</span>
                   </div>
                 </div>
-                <span className="maint-status-pill">24/7 Activo</span>
+                <span className="maint-status-pill maint-status-pill-blue">
+                  <span className="maint-status-indicator-dot" />
+                  24/7 Activo
+                </span>
               </div>
 
               {/* Teléfono y WhatsApp */}
               <div className="maint-contact-row">
                 <div className="maint-contact-info">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                   </svg>
                   <span>5517 8100</span>
@@ -359,8 +372,8 @@ export default function MaintenancePage({ onBypassSuccess }) {
 
               {/* Correo y Copiar */}
               <div className="maint-contact-row">
-                <div className="maint-contact-info">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <div className="maint-contact-info" title="sistemashotel@jardinesdellago.com">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                     <polyline points="22,6 12,13 2,6"/>
                   </svg>
@@ -370,7 +383,7 @@ export default function MaintenancePage({ onBypassSuccess }) {
                   <button
                     type="button"
                     onClick={() => handleCopyEmail('sistemashotel@jardinesdellago.com', 'hotel')}
-                    className="maint-pill-btn"
+                    className={`maint-pill-btn ${copiedId === 'hotel' ? 'maint-pill-btn-copied' : ''}`}
                   >
                     {copiedId === 'hotel' ? '¡Copiado!' : 'Copiar'}
                   </button>
@@ -392,6 +405,7 @@ export default function MaintenancePage({ onBypassSuccess }) {
           }}
           disabled={loading}
           className="maint-btn-admin"
+          type="button"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -401,22 +415,23 @@ export default function MaintenancePage({ onBypassSuccess }) {
         </button>
 
         <p className="maint-copyright">
-          &copy; 2026 Jardines del Lago. Todos los derechos reservados.
+          &copy; 2026 Jardines del Lago Hotel &amp; Resort. Todos los derechos reservados.
         </p>
       </footer>
 
-      {/* Modal interactivo de Acceso de Administrador */}
+      {/* Modal interactivo de Acceso de Administrador (Estilo Minimalista Oscuro) */}
       {showModal && (
-        <div className="maint-modal-backdrop">
+        <div className="maint-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
           <div className="maint-modal-dialog">
             {/* Cabecera del Modal */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                background: '#eff6ff',
-                color: '#2563eb',
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'rgba(56, 189, 248, 0.1)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                color: '#38bdf8',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -427,11 +442,11 @@ export default function MaintenancePage({ onBypassSuccess }) {
                 </svg>
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#f8fafc' }}>
                   Acceso de Administrador
                 </h3>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
-                  Ingresa tu contrase&ntilde;a para autorizar acciones administrativas.
+                <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#94a3b8' }}>
+                  Ingresa tu clave para autorizar acciones administrativas.
                 </p>
               </div>
             </div>
@@ -439,13 +454,13 @@ export default function MaintenancePage({ onBypassSuccess }) {
             {/* Mensajes de Alerta */}
             {errorMsg && (
               <div style={{
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                color: '#991b1b',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
                 padding: '10px 12px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: 600,
+                borderRadius: '10px',
+                fontSize: '12.5px',
+                fontWeight: 500,
                 marginBottom: '14px',
                 display: 'flex',
                 alignItems: 'center',
@@ -458,23 +473,23 @@ export default function MaintenancePage({ onBypassSuccess }) {
 
             {successMsg && (
               <div style={{
-                background: '#f0fdf4',
-                border: '1px solid #bbf7d0',
-                color: '#166534',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#6ee7b7',
                 padding: '10px 12px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: 600,
+                borderRadius: '10px',
+                fontSize: '12.5px',
+                fontWeight: 500,
                 marginBottom: '14px'
               }}>
                 {successMsg}
               </div>
             )}
 
-            {/* Input de Contraseña (sin revelar la clave en placeholder) */}
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Contrase&ntilde;a de Administrador:
+            {/* Input de Contraseña */}
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '7px' }}>
+                Contraseña de Administrador:
               </label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <input
@@ -492,14 +507,16 @@ export default function MaintenancePage({ onBypassSuccess }) {
                   disabled={loading}
                   style={{
                     width: '100%',
-                    padding: '10px 40px 10px 12px',
-                    border: '1.5px solid #cbd5e1',
-                    borderRadius: '8px',
+                    padding: '11px 40px 11px 14px',
+                    border: '1px solid rgba(255, 255, 255, 0.14)',
+                    background: 'rgba(0, 0, 0, 0.35)',
+                    borderRadius: '10px',
                     fontSize: '14px',
-                    color: '#0f172a',
+                    color: '#f8fafc',
                     fontWeight: 600,
                     outline: 'none',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.2s'
                   }}
                 />
                 <button
@@ -512,7 +529,9 @@ export default function MaintenancePage({ onBypassSuccess }) {
                     border: 'none',
                     color: '#94a3b8',
                     cursor: 'pointer',
-                    padding: '4px'
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center'
                   }}
                 >
                   {showPassword ? (
@@ -532,19 +551,20 @@ export default function MaintenancePage({ onBypassSuccess }) {
                 disabled={loading}
                 style={{
                   width: '100%',
-                  padding: '11px',
-                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                  color: '#ffffff',
+                  padding: '12px',
+                  background: '#f8fafc',
+                  color: '#090d16',
                   border: 'none',
-                  borderRadius: '8px',
+                  borderRadius: '10px',
                   fontSize: '13px',
                   fontWeight: 700,
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 2px 4px rgba(37, 99, 235, 0.25)',
+                  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  transition: 'background 0.2s'
                 }}
               >
                 {loading ? 'Procesando...' : '🔓 Quitar Modo Mantenimiento'}
@@ -556,18 +576,19 @@ export default function MaintenancePage({ onBypassSuccess }) {
                 disabled={loading}
                 style={{
                   width: '100%',
-                  padding: '10px',
-                  background: '#f8fafc',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  fontSize: '12px',
+                  padding: '11px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  color: '#e2e8f0',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  fontSize: '12.5px',
                   fontWeight: 600,
                   cursor: loading ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px'
+                  gap: '6px',
+                  transition: 'background 0.2s'
                 }}
               >
                 🔑 Solo Entrar como Administrador (Bypass)
@@ -585,10 +606,10 @@ export default function MaintenancePage({ onBypassSuccess }) {
                   width: '100%',
                   padding: '8px',
                   background: 'transparent',
-                  color: '#64748b',
+                  color: '#94a3b8',
                   border: 'none',
-                  fontSize: '12px',
-                  fontWeight: 600,
+                  fontSize: '12.5px',
+                  fontWeight: 500,
                   cursor: 'pointer'
                 }}
               >

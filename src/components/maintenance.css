@@ -1,23 +1,42 @@
-/* maintenance.css — Pantalla ejecutiva de Sistema en Mantenimiento */
+/* maintenance.css — Rediseño Minimalista Ejecutivo (Obsidian Reserve) */
 
+/* Contenedor raíz de la página */
 .maint-page-root {
   min-height: 100vh;
   width: 100%;
-  background: #080d1a radial-gradient(circle at 50% 15%, rgba(37, 99, 235, 0.15) 0%, rgba(8, 13, 26, 0.95) 70%);
+  background: #080d1a radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.07) 0%, rgba(8, 13, 26, 0.98) 75%);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
   padding: 32px 20px 24px;
   box-sizing: border-box;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: #0f172a;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #dfe2ef;
+  position: relative;
+  overflow-x: hidden;
 }
 
-/* Header superior */
+/* Sutil halo ambiental de fondo */
+.maint-ambient-glow {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.06) 0%, transparent 70%);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Barra superior de marca y estado */
 .maint-top-bar {
+  position: relative;
+  z-index: 10;
   width: 100%;
-  max-width: 840px;
+  max-width: 760px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -33,15 +52,15 @@
 }
 
 .maint-logo-icon {
-  width: 38px;
-  height: 38px;
-  background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   flex-shrink: 0;
 }
 
@@ -51,17 +70,17 @@
 }
 
 .maint-brand-name {
-  color: #ffffff;
+  color: #f8fafc;
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.2px;
   line-height: 1.2;
 }
 
 .maint-brand-sub {
-  color: #94a3b8;
-  font-size: 9px;
-  font-weight: 700;
+  color: #64748b;
+  font-size: 9.5px;
+  font-weight: 600;
   letter-spacing: 1.2px;
   text-transform: uppercase;
 }
@@ -70,170 +89,220 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
   padding: 6px 14px;
   border-radius: 20px;
-  color: #e2e8f0;
+  color: #94a3b8;
   font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .maint-dot-amber {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #f59e0b;
-  box-shadow: 0 0 8px #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
   animation: maintPulse 2s infinite ease-in-out;
 }
 
 @keyframes maintPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 0.35; transform: scale(0.85); }
 }
 
-/* Tarjeta principal Bento */
+/* Tarjeta Principal Minimalista */
 .maint-card {
+  position: relative;
+  z-index: 10;
   width: 100%;
-  max-width: 680px;
-  background: #ffffff;
+  max-width: 760px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   overflow: hidden;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
   margin-bottom: 28px;
-  animation: maintFadeIn 0.4s ease-out;
+  animation: maintFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes maintFadeIn {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Cinta superior ámbar */
-.maint-card-ribbon {
-  background: linear-gradient(90deg, #d97706 0%, #f59e0b 100%);
-  color: #ffffff;
-  padding: 11px 22px;
+/* Cabecera superior interna sutil (en lugar del bloque amarillo tosco) */
+.maint-card-header-bar {
+  padding: 16px 28px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
-  font-weight: 700;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.015);
   gap: 12px;
+  flex-wrap: wrap;
 }
 
-.maint-ribbon-title {
-  display: flex;
+.maint-phase-pill {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #94a3b8;
 }
 
-.maint-ribbon-badge {
-  background: rgba(0, 0, 0, 0.2);
-  padding: 3px 10px;
-  border-radius: 12px;
+.maint-phase-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+}
+
+.maint-status-pill-pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  padding: 4px 12px;
+  border-radius: 20px;
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  white-space: nowrap;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-/* Contenido interior de la tarjeta */
+.maint-ping-wrap {
+  position: relative;
+  display: flex;
+  width: 8px;
+  height: 8px;
+}
+
+.maint-ping-wave {
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  position: absolute;
+  display: inline-flex;
+  height: 100%;
+  width: 100%;
+  border-radius: 50%;
+  background-color: #f59e0b;
+  opacity: 0.75;
+}
+
+.maint-ping-core {
+  position: relative;
+  display: inline-flex;
+  border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  background-color: #f59e0b;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Cuerpo de la tarjeta */
 .maint-card-body {
   padding: 36px 36px 32px;
   text-align: center;
 }
 
-/* Ícono de llave y pastilla de versión */
+/* Ícono minimalista de mantenimiento */
 .maint-icon-wrap {
-  position: relative;
-  width: 76px;
-  height: 76px;
-  margin: 0 auto 18px;
-}
-
-.maint-icon-box {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 20px -3px rgba(217, 119, 6, 0.25);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.maint-icon-box {
+  width: 52px;
+  height: 52px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .maint-version-pill {
-  position: absolute;
-  bottom: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #0f172a;
-  color: #ffffff;
-  font-size: 10.5px;
-  font-weight: 800;
-  padding: 2px 10px;
-  border-radius: 12px;
-  border: 2px solid #ffffff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  letter-spacing: 0.3px;
-  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  letter-spacing: 0.03em;
 }
 
 .maint-title {
-  font-size: 27px;
-  font-weight: 800;
-  color: #0f172a;
+  font-size: 26px;
+  font-weight: 700;
+  color: #f8fafc;
   margin: 0 0 10px;
-  letter-spacing: -0.6px;
+  letter-spacing: -0.025em;
   line-height: 1.25;
 }
 
 .maint-subtitle {
   font-size: 14.5px;
-  color: #475569;
+  color: #94a3b8;
   line-height: 1.6;
-  max-width: 530px;
-  margin: 0 auto 26px;
+  max-width: 540px;
+  margin: 0 auto 24px;
+  font-weight: 400;
 }
 
-/* Fila de acción única */
+/* Botón único de acción: Reintentar ahora */
 .maint-action-wrap {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
 }
 
 .maint-btn-retry {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 12px 32px;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  color: #ffffff;
-  border: none;
+  gap: 9px;
+  padding: 12px 28px;
+  background: #f8fafc;
+  color: #090d16;
+  border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 12px;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 6px 16px -2px rgba(37, 99, 235, 0.4);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .maint-btn-retry:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 22px -3px rgba(37, 99, 235, 0.5);
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(255, 255, 255, 0.15), 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .maint-btn-retry:active {
@@ -241,76 +310,83 @@
 }
 
 .maint-btn-retry:disabled {
-  opacity: 0.7;
+  opacity: 0.65;
   cursor: not-allowed;
   transform: none;
 }
 
-/* Divisor de canales de soporte */
+/* Divisor elegante de canales de soporte */
 .maint-divider-row {
   display: flex;
   align-items: center;
   margin: 0 0 20px;
-  gap: 14px;
+  gap: 16px;
 }
 
 .maint-divider-line {
   flex: 1;
   height: 1px;
-  background: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .maint-divider-text {
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1.2px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #64748b;
   white-space: nowrap;
 }
 
-/* Cuadrícula de tarjetas de soporte */
+/* Cuadrícula de tarjetas de soporte (sin desbordamientos) */
 .maint-support-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   text-align: left;
+  width: 100%;
 }
 
 .maint-support-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 16px;
-  padding: 16px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 0;
+  transition: all 0.2s ease;
 }
 
 .maint-support-card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .maint-support-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
 }
 
 .maint-support-title-wrap {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex: 1;
 }
 
 .maint-support-icon-badge {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #60a5fa;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -320,42 +396,73 @@
 .maint-support-titles {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .maint-support-name {
-  font-size: 13px;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.2;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #f8fafc;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .maint-support-dept {
   font-size: 11px;
-  color: #64748b;
-  font-weight: 500;
+  color: #94a3b8;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Pastillas de estado (no se cortan) */
 .maint-status-pill {
-  background: #dcfce7;
-  color: #15803d;
-  font-size: 10px;
-  font-weight: 800;
-  padding: 3px 8px;
-  border-radius: 12px;
-  letter-spacing: 0.2px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
-/* Filas de contacto */
+.maint-status-pill-green {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+.maint-status-pill-blue {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+}
+
+.maint-status-indicator-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Filas de contacto protegidas contra desbordamiento */
 .maint-contact-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 10px;
   gap: 8px;
+  min-width: 0;
 }
 
 .maint-contact-info {
@@ -363,18 +470,25 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  font-weight: 600;
-  color: #1e293b;
+  font-weight: 500;
+  color: #cbd5e1;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+}
+
+.maint-contact-info span {
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-size: 11.5px;
 }
 
 .maint-contact-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-shrink: 0;
 }
 
@@ -382,38 +496,47 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 9px;
+  padding: 4px 8px;
   border-radius: 6px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #334155;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .maint-pill-btn:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-  color: #0f172a;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 .maint-pill-btn-wa {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  color: #166534;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.25);
+  color: #4ade80;
 }
 
 .maint-pill-btn-wa:hover {
-  background: #dcfce7;
-  border-color: #86efac;
-  color: #14532d;
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86efac;
 }
 
-/* Footer con botón de Administrador */
+.maint-pill-btn-copied {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+/* Pie de página con botón de Administrador */
 .maint-footer {
+  position: relative;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -422,26 +545,26 @@
 }
 
 .maint-btn-admin {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: #94a3b8;
   font-size: 12px;
-  font-weight: 600;
-  padding: 8px 20px;
-  border-radius: 30px;
+  font-weight: 500;
+  padding: 7px 18px;
+  border-radius: 20px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   cursor: pointer;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .maint-btn-admin:hover {
-  background: rgba(30, 41, 59, 0.9);
+  background: rgba(30, 41, 59, 0.8);
   color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.18);
   transform: translateY(-1px);
 }
 
@@ -449,24 +572,25 @@
   color: #64748b;
   font-size: 11px;
   margin: 0;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.02em;
 }
 
-/* Modal interactivo de Administrador */
+/* Modal interactivo de Administrador (Minimalista Oscuro) */
 .maint-modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(8, 13, 26, 0.8);
-  backdrop-filter: blur(8px);
+  background-color: rgba(5, 8, 16, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
   z-index: 999999;
-  animation: maintBackdropFade 0.25s ease-out;
+  animation: maintBackdropFade 0.2s ease-out;
 }
 
 @keyframes maintBackdropFade {
@@ -475,26 +599,28 @@
 }
 
 .maint-modal-dialog {
-  background: #ffffff;
+  background: #0f172a;
   border-radius: 20px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   width: 100%;
   max-width: 420px;
   padding: 26px;
   text-align: left;
   position: relative;
   animation: maintModalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #f8fafc;
 }
 
 @keyframes maintModalPop {
-  from { opacity: 0; transform: scale(0.95); }
+  from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
 
-/* Responsive móvil */
-@media (max-width: 680px) {
+/* Responsive móvil y tablet */
+@media (max-width: 740px) {
   .maint-page-root {
-    padding: 20px 12px 20px;
+    padding: 20px 14px 20px;
   }
 
   .maint-top-bar {
@@ -503,16 +629,11 @@
     gap: 12px;
   }
 
-  .maint-card-ribbon {
+  .maint-card-header-bar {
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
-    padding: 10px 16px;
-  }
-
-  .maint-ribbon-title {
-    font-size: 11px;
-    white-space: normal;
+    gap: 8px;
+    padding: 12px 18px;
   }
 
   .maint-card-body {
@@ -534,11 +655,10 @@
   }
 
   .maint-contact-row {
-    flex-wrap: wrap;
-    gap: 6px;
+    padding: 7px 9px;
   }
 
-  .maint-contact-info {
-    font-size: 11.5px;
+  .maint-contact-info span {
+    font-size: 11px;
   }
 }
